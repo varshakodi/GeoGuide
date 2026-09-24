@@ -4,7 +4,7 @@ import os
 import re
 from datetime import date
 from typing import Optional
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from ai import config
@@ -16,6 +16,7 @@ from .ask_context import passages_for
 from ai.corpus import city_sections, load_documents
 from . import data_queries as dq
 from . import date_facts
+from . import source as source_rows
 from .ranker import opens_earliest, rank, why_not
 
 router = APIRouter()
@@ -276,6 +277,17 @@ def now(city_id: str, lat: float = None, lng: float = None, at: str = "15:00",
                             "reason": why_not(p, at, window, budget),
                             "source_label": "activities_poi"} for p in near]
         out["opens_earliest"] = opens_earliest(pois)
+    return out
+
+
+@router.get("/source")
+def source(label: str, city_id: str = None, for_date: str = None):
+    """The database rows behind a citation label, so the UI can show the evidence itself."""
+    if city_id and for_date:
+        for_date, _ = dq.clamp_date(city_id, for_date)
+    out = source_rows.resolve(label, city_id, for_date)
+    if out is None:
+        raise HTTPException(status_code=404, detail="That label is not a record reference.")
     return out
 
 
