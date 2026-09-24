@@ -6,7 +6,7 @@ const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov
 
 /** The mandatory enhancement, made tappable: every date the dataset covers, with the
     days that have an event marked, so a judge can land on a festival in one tap. */
-export default function DateScrubber({ lang, date, range, events, onChange }) {
+export default function DateScrubber({ lang, date, range, events, onChange, changed }) {
   const trackRef = useRef(null)
 
   const days = useMemo(() => {
@@ -38,9 +38,9 @@ export default function DateScrubber({ lang, date, range, events, onChange }) {
   }
 
   return (
-    <section className="panel scrub">
+    <section className={`panel scrub ${changed ? 'date-updated' : ''}`} aria-live={changed ? 'polite' : undefined}>
       <div className="spread">
-        <span className="eyebrow">{t(lang, 'date')}</span>
+        <span className="eyebrow">{t(lang, 'date')} {changed && <span className="updated-badge">{t(lang, 'updated')}</span>}</span>
         <div className="row">
           <button className="btn ghost" onClick={() => shift(-1)} aria-label="previous day">←</button>
           <input type="date" value={date} min={range.min} max={range.max}
