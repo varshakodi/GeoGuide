@@ -38,3 +38,9 @@ def test_knowledge_base_and_poi_fact_labels_return_their_chunks():
 def test_field_style_reason_labels_are_not_record_references():
     assert resolve("activities_poi.closes_at") is None
     assert resolve("") is None
+
+
+def test_right_now_reason_on_a_pick_opens_that_poi_row():
+    out = resolve("activities_poi / poi_c07155aa (lat/lng)")
+    assert out["field"] == "lat/lng" and out["query"] == "poi_id = 'poi_c07155aa'"
+    assert out["rows"][0]["name"] == "Bengaluru Bird Sanctuary"
