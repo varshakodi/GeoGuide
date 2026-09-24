@@ -2,6 +2,7 @@
 no city and no date is ever hardcoded."""
 import os
 from datetime import date
+from typing import Optional
 from fastapi import APIRouter, Query
 from pydantic import BaseModel
 
@@ -83,7 +84,7 @@ class Ask(BaseModel):
     question: str
     city_id: str
     lang: str = "en-IN"
-    session_id: str | None = None
+    session_id: Optional[str] = None
 
 
 @router.post("/ask")

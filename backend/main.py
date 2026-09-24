@@ -7,7 +7,12 @@ from . import data_queries as dq
 from .ai_routes import router as ai_router
 
 app = FastAPI(title="GeoGuide API")
-app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+app.add_middleware(CORSMiddleware, allow_origins=[
+    "http://localhost:5173", "http://127.0.0.1:5173",
+    "http://localhost:5174", "http://127.0.0.1:5174",
+    "http://localhost:5175", "http://127.0.0.1:5175",
+    "http://130.1.44.145:5175",
+],
                    allow_methods=["*"], allow_headers=["*"])
 app.include_router(ai_router)
 
