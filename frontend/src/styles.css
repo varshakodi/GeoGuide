@@ -24,11 +24,13 @@
   .map-stage, .map-user-pulse { animation: none; }
 }
 
-/* Keep the primary navigation visually centred between brand and utilities. */
-@media (min-width: 768px) {
+/* Keep the primary navigation centred on the page: equal side columns, so the brand and
+   the utilities can differ in width without pushing it off centre. Below 1280px the
+   tabs sit on their own row under the header (see TopNav). */
+@media (min-width: 1280px) {
   header.sticky > div:first-child {
     display: grid;
-    grid-template-columns: auto 1fr auto;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   }
   header.sticky > div:first-child > nav[aria-label="Primary navigation"] {
     justify-self: center;

@@ -1,0 +1,124 @@
+/* Light theme. The screens are written with dark-theme utility classes (text-white/65,
+   bg-white/[.04], bg-[#121815], ...); with <html data-theme="light"> (the sun/moon
+   toggle, see main.jsx and App.jsx) each of those maps to its light counterpart here.
+
+   Contrast: faded white text on dark (text-white/40...) cannot become faded dark text on
+   white, which fails WCAG AA. Every text step maps to a solid colour at 4.5:1 or better
+   on both the page and card backgrounds. Anything inside .on-photo (text laid over a
+   photo) keeps its dark-theme colours, because the photo is still dark behind it. */
+
+:root[data-theme="light"] {
+  --page: #f2f4ee;
+  --surface: #ffffff;
+  --ink: #121a15;      /* 17:1 on white */
+  --ink-2: #26302a;    /* 13:1 */
+  --ink-3: #3c4640;    /* 9.6:1 */
+  --ink-4: #525c56;    /* 6.6:1, the faintest text used */
+  --line: rgba(18, 26, 21, .12);
+  --line-2: rgba(18, 26, 21, .2);
+  --lime-ink: #3f6212; /* lime text and icons on light: 7:1 */
+  color-scheme: light;
+}
+
+/* Page, header and panel backgrounds */
+:root[data-theme="light"] .bg-\[\#080b0a\] { background-color: var(--page); }
+:root[data-theme="light"] .bg-\[\#0a120d\]\/80 { background-color: rgba(255, 255, 255, .88); }
+:root[data-theme="light"] :is(.bg-\[\#121815\], .bg-\[\#101713\], .bg-\[\#172019\], .bg-\[\#111813\], .bg-\[\#121815\]\/90, .bg-slate-900\/90) { background-color: var(--surface); }
+:root[data-theme="light"] .glass { background-color: var(--surface); border-color: var(--line); box-shadow: 0 1px 2px rgba(18, 26, 21, .06), 0 8px 24px rgba(18, 26, 21, .06); }
+:root[data-theme="light"] .bg-white\/\[\.04\] { background-color: var(--surface); box-shadow: 0 1px 2px rgba(18, 26, 21, .05); }
+:root[data-theme="light"] :is(.bg-white\/\[\.05\], .bg-white\/\[\.06\], .bg-black\/20, .bg-black\/25) { background-color: rgba(18, 26, 21, .05); }
+:root[data-theme="light"] :is(.bg-white\/10, .bg-white\/15, .bg-white\/20) { background-color: rgba(18, 26, 21, .08); }
+:root[data-theme="light"] :is(.hover\:bg-white\/10:hover, .hover\:bg-white\/\[\.08\]:hover) { background-color: rgba(18, 26, 21, .09); }
+:root[data-theme="light"] .bg-white\/35 { background-color: rgba(18, 26, 21, .25); }
+:root[data-theme="light"] .hover\:bg-white\/60:hover { background-color: rgba(18, 26, 21, .45); }
+:root[data-theme="light"] .bg-black\/70 { background-color: rgba(18, 26, 21, .45); }
+:root[data-theme="light"] .bg-lime-300\/\[\.04\] { background-color: #f7fbe9; }
+:root[data-theme="light"] .bg-emerald-300\/10, :root[data-theme="light"] .bg-emerald-300\/15, :root[data-theme="light"] .bg-emerald-300\/20 { background-color: #e3f4ec; }
+:root[data-theme="light"] .bg-amber-300\/10 { background-color: #fdf3dc; }
+:root[data-theme="light"] .bg-rose-400\/10 { background-color: #fdecef; }
+:root[data-theme="light"] .bg-orange-300\/10, :root[data-theme="light"] .bg-\[\#ff6b57\]\/10 { background-color: #fff0eb; }
+
+/* Text */
+:root[data-theme="light"] :is(.text-white, .text-white\/90, .text-white\/85, .hover\:text-white:hover) { color: var(--ink); }
+:root[data-theme="light"] :is(.text-white\/80, .text-white\/75) { color: var(--ink-2); }
+:root[data-theme="light"] :is(.text-white\/70, .text-white\/65, .text-white\/60) { color: var(--ink-3); }
+:root[data-theme="light"] :is(.text-white\/55, .text-white\/50, .text-white\/45, .text-white\/40) { color: var(--ink-4); }
+:root[data-theme="light"] .placeholder\:text-white\/40::placeholder { color: var(--ink-4); }
+:root[data-theme="light"] :is(.text-lime-300, .hover\:text-lime-200:hover) { color: var(--lime-ink); }
+:root[data-theme="light"] :is(.text-emerald-100, .text-emerald-200, .text-emerald-300, .text-emerald-200\/80, .text-emerald-100\/75) { color: #03694c; }
+:root[data-theme="light"] :is(.text-amber-100, .text-amber-200, .text-amber-100\/90) { color: #8a3c0b; }
+:root[data-theme="light"] :is(.text-orange-50, .text-orange-100, .text-orange-200, .text-\[\#ff6b57\]) { color: #9a3412; }
+:root[data-theme="light"] :is(.text-rose-100, .text-rose-200) { color: #9f1239; }
+
+/* Borders and focus rings */
+:root[data-theme="light"] :is(.border-white\/10, .border-white\/15) { border-color: var(--line); }
+:root[data-theme="light"] :is(.border-white\/20, .border-white\/25, .hover\:border-white\/15:hover) { border-color: var(--line-2); }
+:root[data-theme="light"] :is(.hover\:border-white\/35:hover, .hover\:border-white\/60:hover) { border-color: rgba(18, 26, 21, .35); }
+:root[data-theme="light"] :is(.hover\:border-lime-300:hover, .focus\:border-lime-300:focus, .border-lime-300) { border-color: #65a30d; }
+:root[data-theme="light"] .border-\[\#111813\] { border-color: var(--surface); }
+:root[data-theme="light"] :is(.border-emerald-300\/20, .border-emerald-300\/25, .border-emerald-300\/40, .border-emerald-300\/50) { border-color: rgba(3, 105, 76, .35); }
+:root[data-theme="light"] :is(.border-amber-300\/30, .border-amber-300\/40) { border-color: rgba(138, 60, 11, .35); }
+:root[data-theme="light"] :is(.border-rose-300, .border-rose-300\/40) { border-color: rgba(159, 18, 57, .45); }
+:root[data-theme="light"] .border-orange-200\/25 { border-color: rgba(154, 52, 18, .3); }
+:root[data-theme="light"] .border-lime-300\/20 { border-color: rgba(101, 163, 13, .35); }
+:root[data-theme="light"] :is(.focus\:ring-lime-300:focus, .ring-lime-300) { --tw-ring-color: #4d7c0f; }
+
+/* Gradients that fade a photo into the page: fade into the light page instead */
+:root[data-theme="light"] .to-\[\#080b0a\] { --tw-gradient-to: var(--page) var(--tw-gradient-to-position); }
+:root[data-theme="light"] .via-\[\#080b0a\]\/65 { --tw-gradient-stops: var(--tw-gradient-from), rgba(242, 244, 238, .65) var(--tw-gradient-via-position), var(--tw-gradient-to); }
+:root[data-theme="light"] .via-\[\#080b0a\]\/45 { --tw-gradient-stops: var(--tw-gradient-from), rgba(242, 244, 238, .45) var(--tw-gradient-via-position), var(--tw-gradient-to); }
+:root[data-theme="light"] .from-\[\#080b0a\] { --tw-gradient-from: var(--page) var(--tw-gradient-from-position); --tw-gradient-to: rgba(242, 244, 238, 0) var(--tw-gradient-to-position); --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to); }
+:root[data-theme="light"] .from-\[\#080b0a\]\/15 { --tw-gradient-from: rgba(242, 244, 238, .15) var(--tw-gradient-from-position); --tw-gradient-to: rgba(242, 244, 238, 0) var(--tw-gradient-to-position); --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to); }
+
+/* Text laid over a photo keeps its dark-theme colours: the photo is still dark behind it.
+   .on-color does the same for text on a solid colour (the blue briefing button). */
+:root[data-theme="light"] .on-photo :is(.text-white, .text-white\/90, .text-white\/85, .text-white\/80, .text-white\/75, .text-white\/70, .text-white\/65, .text-white\/60, .text-white\/55, .text-white\/50, .hover\:text-white:hover) { color: #fff; }
+:root[data-theme="light"] .on-photo .text-white\/75 { color: rgba(255, 255, 255, .8); }
+:root[data-theme="light"] .on-photo .text-lime-300 { color: #bef264; }
+:root[data-theme="light"] .on-photo :is(.bg-black\/20, .bg-black\/25) { background-color: rgba(0, 0, 0, .3); }
+:root[data-theme="light"] .on-photo :is(.bg-white\/20, .bg-white\/10) { background-color: rgba(255, 255, 255, .22); }
+:root[data-theme="light"] .on-photo :is(.border-white\/10, .border-white\/15, .border-white\/20, .border-white\/25) { border-color: rgba(255, 255, 255, .3); }
+:root[data-theme="light"] :is(.on-photo, .on-color).text-white, :root[data-theme="light"] :is(.on-photo, .on-color) .text-white { color: #fff; }
+
+/* Switching theme swaps every colour at once; without this, each element's own colour
+   transition fades it at a slightly different pace and the page flickers mid-switch. */
+:root.theme-switching *, :root.theme-switching *::before, :root.theme-switching *::after { transition: none !important; }
+
+/* Landing hero in light: instead of a dark scrim with white text, lay a light wash of the
+   page colour over the photo (strongest behind the copy on the left, nearly clear on the
+   right) and feather its edges into the page, so the photo stays visible but blends in.
+   The copy turns dark on the wash: even over a black pixel, a 50% wash keeps the dark
+   heading at about 8:1, well above WCAG AA. */
+:root[data-theme="light"] .hero-scrim { display: none; }
+:root[data-theme="light"] .hero-wash {
+  display: block;
+  background:
+    linear-gradient(to right, rgba(242, 244, 238, .62) 0%, rgba(242, 244, 238, .5) 34%, rgba(242, 244, 238, .16) 62%, rgba(242, 244, 238, .04) 100%),
+    linear-gradient(to bottom, rgba(242, 244, 238, .3) 0%, rgba(242, 244, 238, 0) 16%, rgba(242, 244, 238, 0) 78%, var(--page) 100%);
+}
+:root[data-theme="light"] .hero-photo {
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 7%, #000 93%, transparent 100%), linear-gradient(to bottom, transparent 0%, #000 6%, #000 86%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(to right, transparent 0%, #000 7%, #000 93%, transparent 100%), linear-gradient(to bottom, transparent 0%, #000 6%, #000 86%, transparent 100%);
+  mask-composite: intersect;
+}
+/* The wash above is kept light so the photo stays clear; the copy gets its own soft glow
+   of the page colour instead, feathered to nothing, so dark text holds 4.5:1 over the
+   darkest part of any city photo without washing out the whole image. */
+:root[data-theme="light"] .on-photo.hero-copy { position: relative; isolation: isolate; }
+:root[data-theme="light"] .on-photo.hero-copy::before {
+  content: ""; position: absolute; z-index: -1; pointer-events: none;
+  inset: -80px -24px -40px -64px;
+  background: radial-gradient(ellipse 66% 64% at 36% 48%, rgba(242, 244, 238, .92) 0%, rgba(242, 244, 238, .88) 68%, rgba(242, 244, 238, 0) 100%);
+}
+:root[data-theme="light"] .on-photo.hero-copy :is(.text-white, .text-white\/90, .text-white\/85) { color: var(--ink); }
+:root[data-theme="light"] .on-photo.hero-copy .text-lime-300 { color: #243c0b; }   /* deeper than --lime-ink: small text over a photo */
+:root[data-theme="light"] .on-photo.hero-copy :is(.bg-black\/20, .bg-black\/25) { background-color: rgba(255, 255, 255, .8); }
+:root[data-theme="light"] .on-photo.hero-copy :is(.border-white\/20, .border-white\/15) { border-color: var(--line-2); }
+:root[data-theme="light"] .on-photo.hero-copy .text-emerald-100 { color: #03694c; }
+:root[data-theme="light"] .on-photo.hero-copy .text-emerald-100\/75 { color: #03694c; }
+:root[data-theme="light"] .on-photo.hero-copy .text-rose-200 { color: #9f1239; }
+:root[data-theme="light"] .on-photo.hero-copy .hover\:text-white:hover { color: var(--ink); }
+/* The small "You are in" label gets its own soft pill, so its contrast does not depend on
+   how dark the photo is behind it (the glow above is kept small to leave the photo clear). */
+:root[data-theme="light"] .on-photo.hero-copy > p:first-child { width: fit-content; padding: 4px 10px; margin-left: -10px; border-radius: 999px; background: rgba(242, 244, 238, .88); }
