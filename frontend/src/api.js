@@ -15,17 +15,10 @@ async function get(path, params = {}) {
 }
 
 export const health = () => get('/health')
-<<<<<<< HEAD
 export const context = (lat, lng, for_date, at) => get(GEO_ENDPOINTS.backend.context, { lat, lng, for_date, at })
 export const dates = (city_id) => get(GEO_ENDPOINTS.backend.dates, { city_id })
 export const briefing = (city_id, lang, for_date) => get(GEO_ENDPOINTS.backend.briefing, { city_id, lang, for_date })
 export const nearby = (city_id, lat, lng, for_date) => get(GEO_ENDPOINTS.backend.nearby, { city_id, lat, lng, for_date })
-=======
-export const context = (lat, lng, for_date, at) => get('/context', { lat, lng, for_date, at })
-export const dates = (city_id) => get('/dates', { city_id })
-export const briefing = (city_id, lang, for_date) => get('/briefing', { city_id, lang, for_date })
-export const nearby = (city_id, lat, lng, for_date) => get('/nearby', { city_id, lat, lng, for_date })
->>>>>>> origin/master
 export const now = (city_id, lat, lng, at, for_date, budget) =>
   get(GEO_ENDPOINTS.backend.now, { city_id, lat, lng, at, for_date, budget })
 export const setGrounding = (enabled) => get(GEO_ENDPOINTS.backend.grounding, { enabled })

@@ -19,7 +19,6 @@ export const Skeleton = () => (
   </div>
 )
 
-<<<<<<< HEAD
 export function Tooltip({ label }) {
   return (
     <span className="tooltip-wrap">
@@ -29,15 +28,6 @@ export function Tooltip({ label }) {
     </span>
   )
 }
-=======
-export const EmptyState = ({ icon = 'compass', title, message, action }) => (
-  <div className="empty-state">
-    <span className="empty-icon"><Icon name={icon} size={22} /></span>
-    <div><h3>{title}</h3>{message && <p className="muted">{message}</p>}</div>
-    {action}
-  </div>
-)
->>>>>>> origin/master
 
 /** Read-aloud. Hides itself when the device has no voice for the chosen language,
     rather than producing silence and looking broken. */
@@ -81,7 +71,7 @@ export function SectionCard({ name, data, lang, voice }) {
 
   if (data.type !== 'answer') {
     return (
-      <section className="panel solid reveal section-card">
+      <section className="panel solid reveal">
         {title}
         <div className="refusal" style={{ marginTop: 10 }}>{data.message || t(lang, 'no_answer')}</div>
       </section>
@@ -90,7 +80,7 @@ export function SectionCard({ name, data, lang, voice }) {
   const text = data.claims.map(c => c.text).join(' ')
   const sources = [...new Set(data.claims.flatMap(c => c.source_labels))]
   return (
-    <section className="panel solid reveal section-card">
+    <section className="panel solid reveal">
       <div className="spread">{title}{voice && <Speak text={text} lang={lang} compact />}</div>
       <p className="body" style={{ marginTop: 10 }}>{text}</p>
       <button className="btn ghost" style={{ padding: '2px 0', border: 'none' }}
