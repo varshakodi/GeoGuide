@@ -13,7 +13,7 @@ export const isOpenAt = (p, hhmm) => {
 /** Places drawn from their own lat/lng — no map tiles, nothing fetched.
     Pins follow the clock: open places stay moss, closed ones fade out, so dragging
     the time visibly shuts the city down. */
-export default function PlaceMap({ lang, pois = [], hotels = [], centre, at = '15:00', onSelect, selected }) {
+export default function PlaceMap({ lang, pois = [], hotels = [], centre, at = '15:00', onSelect, selected, numberedIds = [], routeTo }) {
   const [hover, setHover] = useState(null)
   const pts = useMemo(() => {
     const all = [...pois.map(p => ({ ...p, kind: 'poi' })), ...hotels.map(h => ({ ...h, kind: 'hotel' }))]
@@ -33,41 +33,46 @@ export default function PlaceMap({ lang, pois = [], hotels = [], centre, at = '1
   if (!pts.items.length) return null
   const rings = [2, 5, 10].filter(km => km * pts.scale < Math.min(W, H) / 2 - 10)
   const active = hover || pts.items.find(p => (p.poi_id || p.hotel_id) === selected)
+  const routePoint = routeTo && pts.items.find(p => (p.poi_id || p.hotel_id) === (routeTo.poi_id || routeTo.id))
 
   return (
     <div>
-      <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" className="map"
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" className="map map-stage"
            aria-label={`Places near ${centre?.name || 'you'}`}>
-        <rect x="0" y="0" width={W} height={H} rx="16" fill="rgba(255,255,255,.55)" stroke="rgba(74,69,60,.16)" />
+        <defs><pattern id="map-grid" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M32 0H0V32" fill="none" stroke="rgba(198,255,0,.08)" strokeWidth="1" /></pattern></defs>
+        <rect x="0" y="0" width={W} height={H} rx="16" fill="#101913" stroke="rgba(198,255,0,.20)" />
+        <rect x="0" y="0" width={W} height={H} rx="16" fill="url(#map-grid)" />
         {rings.map(km => (
           <g key={km}>
             <circle cx={W / 2} cy={H / 2} r={km * pts.scale} fill="none"
-                    stroke="rgba(60,90,67,.22)" strokeDasharray="4 6" />
-            <text x={W / 2 + 4} y={H / 2 - km * pts.scale + 13} fontSize="11" fill="var(--ink-3)">{km} km</text>
+                    stroke="rgba(198,255,0,.26)" strokeDasharray="4 6" />
+            <text x={W / 2 + 4} y={H / 2 - km * pts.scale + 13} fontSize="11" fill="rgba(255,255,255,.62)">{km} km</text>
           </g>
         ))}
+        {routePoint && <line x1={W / 2} y1={H / 2} x2={routePoint.x} y2={routePoint.y} stroke="#ff6b57" strokeWidth="2.5" strokeDasharray="8 7" opacity=".95" />}
         {pts.items.map(p => {
           const id = p.poi_id || p.hotel_id
           const open = p.kind === 'poi' ? isOpenAt(p, at) : true
           const on = id === selected || id === hover?.poi_id || id === hover?.hotel_id
-          const fill = p.kind === 'hotel' ? '#B8552F' : (open ? '#3C5A43' : 'rgba(74,69,60,.28)')
+          const fill = p.kind === 'hotel' ? '#e09a78' : (open ? '#c6ff00' : 'rgba(255,255,255,.24)')
+          const number = numberedIds.indexOf(id) + 1
           return (
             <g key={id} className="pin" onClick={() => onSelect?.(id)}
                onMouseEnter={() => setHover(p)} onMouseLeave={() => setHover(null)}>
               {p.kind === 'hotel'
                 ? <rect x={p.x - 5} y={p.y - 5} width="10" height="10" rx="2" fill={fill}
                         stroke="#fff" strokeWidth={on ? 2.5 : 1.5} />
-                : <circle cx={p.x} cy={p.y} r={on ? 9 : 6} fill={fill} stroke="#fff" strokeWidth={on ? 2.5 : 1.5} />}
+                : <><circle cx={p.x} cy={p.y} r={on ? 10 : 7} fill={fill} stroke="#080b0a" strokeWidth={on ? 3 : 2} />{number > 0 && <text x={p.x} y={p.y + 4} textAnchor="middle" fontSize="10" fontWeight="800" fill="#080b0a">{number}</text>}</>}
             </g>
           )
         })}
-        <circle cx={W / 2} cy={H / 2} r="9" fill="#fff" stroke="var(--moss)" strokeWidth="3" />
-        <circle cx={W / 2} cy={H / 2} r="3.5" fill="var(--moss)" />
-        <line x1={PAD} y1={H - 22} x2={PAD + 2 * pts.scale} y2={H - 22} stroke="var(--ink-3)" strokeWidth="2" />
-        <text x={PAD} y={H - 28} fontSize="11" fill="var(--ink-3)">2 km</text>
+        <circle className="map-user-pulse" cx={W / 2} cy={H / 2} r="15" fill="none" stroke="#c6ff00" strokeWidth="2" opacity=".35" />
+        <circle cx={W / 2} cy={H / 2} r="8" fill="#c6ff00" stroke="#080b0a" strokeWidth="3" />
+        <line x1={PAD} y1={H - 22} x2={PAD + 2 * pts.scale} y2={H - 22} stroke="rgba(255,255,255,.62)" strokeWidth="2" />
+        <text x={PAD} y={H - 28} fontSize="11" fill="rgba(255,255,255,.72)">2 km</text>
         {active && (
           <g transform={`translate(${Math.min(Math.max(active.x, 90), W - 90)}, ${active.y > 60 ? active.y - 44 : active.y + 26})`}>
-            <rect x="-88" y="-20" width="176" height="36" rx="9" fill="rgba(31,29,26,.92)" />
+            <rect x="-88" y="-20" width="176" height="36" rx="9" fill="rgba(8,11,10,.94)" />
             <text x="0" y="-5" textAnchor="middle" fontSize="12.5" fill="#fff">
               {String(active.name).slice(0, 24)}
             </text>
@@ -79,11 +84,8 @@ export default function PlaceMap({ lang, pois = [], hotels = [], centre, at = '1
           </g>
         )}
       </svg>
-      <div className="row" style={{ marginTop: 8, fontSize: 13 }}>
-        <span className="row" style={{ gap: 6 }}><i className="dotk" style={{ background: '#3C5A43' }} /> open at {at}</span>
-        <span className="row" style={{ gap: 6 }}><i className="dotk" style={{ background: 'rgba(74,69,60,.28)' }} /> closed</span>
-        <span className="row" style={{ gap: 6 }}><i className="dotk sq" style={{ background: '#B8552F' }} /> hotel</span>
-        <span className="muted">drawn from activities_poi.lat/lng — no map service</span>
+      <div className="flex flex-wrap gap-3 pt-2 text-xs font-bold text-white/60">
+        <span>● open at {at}</span><span>○ closed</span><span>■ hotel</span><span className="text-white/40">offline-safe map · backend coordinates</span>
       </div>
     </div>
   )

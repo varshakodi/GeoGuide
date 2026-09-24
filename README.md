@@ -1009,6 +1009,23 @@ The submission's appendix maps the PS-13 requirements FR-1 through FR-25 to the 
 
 ---
 
+# 🧰 Tools and libraries disclosed
+
+FastAPI, Uvicorn, Pydantic, ChromaDB, sentence-transformers (`paraphrase-multilingual-MiniLM-L12-v2`), google-genai (Gemini), python-dotenv, pytest, React, Vite. Optional local fallback: Ollama. Claude (Anthropic) was used as an AI coding assistant during the hackathon window.
+
+## Visual assets disclosure
+
+The city hero images in `frontend/public/cities/` are downloaded from Wikimedia Commons and used under their listed Creative Commons licenses:
+
+- Bengaluru: [Bangalore skyline (7121517855).jpg](https://commons.wikimedia.org/wiki/File:Bangalore_skyline_%287121517855%29.jpg), CC BY 2.0, Saad Faruque.
+- Mumbai: [Mumbai skyline category](https://commons.wikimedia.org/wiki/Category:Skylines_of_Mumbai), Wikimedia Commons source.
+- Hyderabad: [Charminar Evening View Hyderabad.jpg](https://commons.wikimedia.org/wiki/File:Charminar_Evening_View_Hyderabad.jpg), free-use Wikimedia Commons upload.
+- Pune: [Pune Skyline.jpg](https://commons.wikimedia.org/wiki/File:Pune_Skyline.jpg), CC BY-SA 3.0, Tushar Mote.
+
+`default.jpg` is a local fallback copy of the Bengaluru image.
+
+---
+
 # 💡 The One-Line Pitch
 
 > **GeoGuide is a location-aware AI travel companion that tells you what matters about a place, what you can do right now, and what you should know — while showing the source behind every claim and refusing to guess when the data doesn't support an answer.**
