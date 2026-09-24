@@ -15,7 +15,9 @@ def _client(key):
     every later call fail with "Cannot send a request, as the client has been closed"."""
     if key not in _CLIENTS:
         from google import genai
-        _CLIENTS[key] = genai.Client(api_key=key)
+        from google.genai import types
+        # A hard timeout, so a slow network falls back instead of hanging the demo.
+        _CLIENTS[key] = genai.Client(api_key=key, http_options=types.HttpOptions(timeout=config.LLM_TIMEOUT_MS))
     return _CLIENTS[key]
 
 
@@ -114,10 +116,11 @@ def generate(system, user):
         try:
             if provider == "claude":
                 return _claude(system, user)
-            # Only the primary provider is worth one short wait for a per-minute quota or
-            # an overload to clear; as a fallback it gets one quick pass over its models.
+            # Only the primary provider is worth waiting out a per-minute quota or an overload
+            # for; as a fallback it gets one quick pass so the request isn't held for a minute.
             if provider == "gemini":
-                return _gemini(system, user, rounds=2 if primary else 1, wait=10)
+                return _gemini(system, user, rounds=config.LLM_QUOTA_ROUNDS if primary else 1,
+                               wait=config.LLM_QUOTA_WAIT)
             return _ollama(system, user)
         except Exception as e:
             print(f"    [llm] {provider} failed: {str(e)[:120]}")

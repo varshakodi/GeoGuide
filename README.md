@@ -7,6 +7,64 @@
 
 ---
 
+## 1. Team & Problem Statement
+
+**VVinners** (BMS College of Engineering): Vamika A Bhat (AI & RAG), Vishnu Mashalkar (backend), Vachana M H (frontend), Varsha Kusumadhara Kodi (data & conformance).
+**PS-13 — GeoGuide: Location-Aware AI Place Companion**, with the mandatory **Date-Shift Briefing** enhancement.
+
+## 2. What we built
+
+- **Location → place → context.** On first launch the app asks for device location (city picker as fallback), resolves the nearest of the 60 cities, and reads the date and season — `GET /context`, `frontend/src/hooks/useGeoLocation.js`.
+- **Grounded six-part briefing** (history, attractions, what's on, weather, culture & etiquette, safety). Every sentence carries a source chip; uncited sentences are dropped — `GET /briefing`, `ai/briefing.py`, `ai/citations.py`.
+- **Date-Shift Briefing (mandatory enhancement).** A date control covering the whole dataset (festival weeks marked). Events, season and weather tips recompute from `events_festivals` and `weather_daily`, each citing its row id (`events_festivals / evt_…`, `weather_daily / wth_…`). An empty date says *"Nothing is scheduled in <city> on <date>."* — `backend/date_facts.py`.
+- **Nearby places and hotels** from `activities_poi` and `hotels`, plus a deterministic **Right now** ranker (open now, distance, time fit, budget) with a field-level reason for every pick — `GET /nearby`, `GET /now`, `backend/ranker.py`.
+- **Follow-up Q&A** that is grounded or refused (live fares, bookings, made-up places), in English, Hindi and Kannada, with **read-aloud** (browser TTS) — `POST /ask`, `ai/pipeline.py`, `ai/refusal.py`.
+
+## 3. Architecture
+
+`React + Vite (frontend/)` → `FastAPI (backend/)` → `PS-13.db` (read-only SQLite) + `ChromaDB` index over `place_kb` and `poi_facts_kb` → `Gemini` (Ollama optional) → citation check → UI with source chips. Full diagram: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and the Architecture section below.
+
+## 4. Data model
+
+Canonical tables used unchanged: `cities`, `place_kb`, `poi_facts_kb`, `activities_poi`, `events_festivals`, `weather_daily`, `safety_advisories`, `hotels`, `languages`, `currencies`, `countries`. Additions (vector index, derived source labels, briefing cache, retrieval log, row-cited date facts) and the boundary rules R1–R8 enforced in code are in [data-model/DATA_MODEL.md](data-model/DATA_MODEL.md).
+
+## 5. AI features
+
+| Capability | Mechanism | Grounding |
+|---|---|---|
+| Briefing | One Gemini call over numbered passages built from DB rows and `place_kb` chunks | Every sentence must cite `[n]`; uncited sentences are dropped; a sentinel refuses a section |
+| Q&A | `paraphrase-multilingual-MiniLM-L12-v2` embeddings + ChromaDB, city-filtered | Intent rules (layer 3) → relevance gate (layer 1) → sentinel + citation check (layer 2) |
+| Date facts & tips | Deterministic rules over `weather_daily` / `events_festivals` | Each line names the row id and field it read |
+| Right now | Deterministic ranker, no model | Each reason names its `activities_poi` field |
+| Offline fallback | If no LLM is reachable, sections quote their passages verbatim, cited, and are labelled as such | A question naming a place the sources never mention is refused |
+
+## 6. Run it locally
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r backend/requirements.txt
+cp .env.example .env              # set GEMINI_API_KEY and GEMINI_MODEL
+python -m ai.index --reset        # builds .chroma/ from PS-13.db (~1 min)
+python -m ai.prewarm --dates 2026-09-24 2026-10-17   # optional: cache the demo briefings
+uvicorn backend.main:app --port 8000
+cd frontend && npm install && npm run dev            # open http://localhost:5173
+```
+
+## 7. Demo path
+
+Arrive (Bengaluru) → **Open briefing** → note *"Nothing is scheduled in Bengaluru on 2026-09-24"* with its source → click the **Monsoon Music Nights** chip on the date control (17 Oct): events, season and tips recompute with new row ids → **Right now** → **Ask** "Anything I should know before Bengaluru Bazaar?" → **Ask** "How much is a cab to the airport right now?" (refused) → **Grounding off** (every section refuses). Detailed script: [docs/DEMO.md](docs/DEMO.md).
+
+## 8. Tests / proof
+
+```bash
+python -m pytest tests -q                         # 32 tests
+python -m ai.evals.run_eval --set adversarial      # refusal eval (needs the index)
+```
+
+Hard proof: `tests/test_grounding.py` (grounding off refuses everything, uncited output becomes a refusal), `tests/test_date_shift.py` and `tests/test_date_facts.py` (events/season/tips change with the date, an empty date is reported honestly, the fallback refuses a made-up landmark), `tests/test_boundary_rules.py` (R1–R8).
+
+---
+
 ## 🧭 What is GeoGuide?
 
 Imagine arriving in a new city.

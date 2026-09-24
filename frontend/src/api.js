@@ -19,8 +19,8 @@ export const context = (lat, lng, for_date, at) => get(GEO_ENDPOINTS.backend.con
 export const dates = (city_id) => get(GEO_ENDPOINTS.backend.dates, { city_id })
 export const briefing = (city_id, lang, for_date) => get(GEO_ENDPOINTS.backend.briefing, { city_id, lang, for_date })
 export const nearby = (city_id, lat, lng, for_date) => get(GEO_ENDPOINTS.backend.nearby, { city_id, lat, lng, for_date })
-export const now = (city_id, lat, lng, at, for_date, budget) =>
-  get(GEO_ENDPOINTS.backend.now, { city_id, lat, lng, at, for_date, budget })
+export const now = (city_id, lat, lng, at, for_date, budget, window) =>
+  get(GEO_ENDPOINTS.backend.now, { city_id, lat, lng, at, for_date, budget, window })
 export const setGrounding = (enabled) => get(GEO_ENDPOINTS.backend.grounding, { enabled })
 export const askSuggestions = (city_id, limit = 4) => get(GEO_ENDPOINTS.backend.askSuggestions, { city_id, limit })
 export const askFaqs = (city_id, lang, limit = 4) => get(GEO_ENDPOINTS.backend.askFaqs, { city_id, lang, limit })

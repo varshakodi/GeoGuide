@@ -29,7 +29,7 @@ def get(city_id, lang, today):
 
 def put(city_id, lang, today, sections):
     """Only cache a complete briefing — never one with a refusal or an LLM error in it."""
-    if any(s.get("type") != "answer" for s in sections.values()):
+    if any(s.get("type") != "answer" or s.get("extractive") for s in sections.values()):
         return False
     DIR.mkdir(parents=True, exist_ok=True)
     (DIR / f"{key(city_id, lang, today)}.json").write_text(
