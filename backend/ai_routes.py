@@ -15,7 +15,7 @@ from ai import translate
 from .ask_context import passages_for
 from ai.corpus import city_sections, load_documents
 from . import data_queries as dq
-from . import date_facts
+from . import date_diff, date_facts
 from . import source as source_rows
 from .ranker import opens_earliest, rank, why_not
 
@@ -104,6 +104,14 @@ def dates(city_id: str):
     """Feeds the date-shift control: the dataset's range and the weeks that have events."""
     return {"range": dq.date_range(city_id), "today": default_date(),
             "events": dq.event_days(city_id)}
+
+
+@router.get("/date-diff")
+def date_diff_route(city_id: str, from_date: str, to_date: str):
+    """What changes when the trip moves from one date to another, each line cited."""
+    if not city_name(city_id):
+        raise HTTPException(status_code=404, detail="Unknown city.")
+    return date_diff.compare(city_id, from_date, to_date)
 
 
 @router.get("/briefing")

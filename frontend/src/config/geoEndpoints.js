@@ -12,6 +12,7 @@ export const GEO_ENDPOINTS = Object.freeze({
     askFaqs: '/ask/faqs',
     grounding: '/grounding',
     source: '/source',
+    dateDiff: '/date-diff',
     translate: '/translate'
   })
 })

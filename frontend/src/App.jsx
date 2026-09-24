@@ -233,6 +233,58 @@ function Cite({ label, onOpen, n, extra = 0, inline = false }) {
     : <span translate="no" className={base}>{body}</span>
 }
 
+// What moves when the trip date moves. Both dates are recomputed from the data and only
+// the differences are listed; each line opens the rows it compared, both dates side by side.
+const DIFF_MARK = {
+  added: ['+', 'bg-lime-300 text-black'],
+  removed: ['−', 'bg-[#ff6b57] text-black'],
+  up: ['↑', 'bg-white/15 text-white'],
+  down: ['↓', 'bg-white/15 text-white'],
+  changed: ['→', 'bg-white/15 text-white'],
+}
+const DIFF_KIND = { event: 'Event', season: 'Season', weather: 'Weather', advisory: 'Advisory', closure: 'Places' }
+function DateDiff({ shift, cityId, onOpen, onClose }) {
+  const [diff, setDiff] = useState(null)
+  useEffect(() => {
+    if (!shift || !cityId) return undefined
+    let live = true
+    setDiff(null)
+    api.dateDiff(cityId, shift.from, shift.to)
+      .then(out => { if (live) setDiff(out) })
+      .catch(() => { if (live) setDiff({ error: true }) })
+    return () => { live = false }
+  }, [shift?.from, shift?.to, cityId])
+  if (!shift) return null
+  const changes = diff?.changes || []
+  return <section aria-label="What changed with the new date" aria-live="polite" className="rounded-3xl border border-lime-300/20 bg-lime-300/[.04] p-5">
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <p className="text-[10px] font-black uppercase tracking-[.25em] text-lime-300">What changed · recomputed for both dates</p>
+        <h2 className="mt-2 text-xl font-black tracking-[-.02em]">{diff?.from_label || shift.from} <span className="text-lime-300">→</span> {diff?.to_label || shift.to}</h2>
+      </div>
+      <div className="flex items-center gap-2">
+        {diff && !diff.error && <span className="rounded-full border border-lime-300/20 px-3 py-1 font-mono text-[11px] text-lime-300">{changes.length} change{changes.length === 1 ? '' : 's'}</span>}
+        <button type="button" onClick={onClose} aria-label="Hide what changed" className="grid h-8 w-8 place-items-center rounded-full border border-white/15 text-white/70 hover:border-white/40">×</button>
+      </div>
+    </div>
+    {!diff
+      ? <div role="status" className="mt-4 flex items-center gap-3 text-sm text-white/60"><span className="h-2 w-2 animate-pulse rounded-full bg-lime-300"/>Comparing the two dates…</div>
+      : diff.error
+        ? <p className="mt-4 text-sm text-white/70">The comparison needs the server, which isn't reachable right now.</p>
+        : changes.length === 0
+          ? <p className="mt-4 text-sm leading-6 text-white/80">Nothing a traveller would notice: the same events, season, advisories and closures, and the weather is within 1 °C and 2 mm of rain.</p>
+          : <ul className="mt-4 divide-y divide-white/10">{changes.map(change => {
+              const [mark, tone] = DIFF_MARK[change.change] || DIFF_MARK.changed
+              const labels = change.source_labels || []
+              return <li key={change.kind + change.text} className="flex items-start gap-3 py-2.5">
+                <span aria-hidden="true" className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full text-xs font-black ${tone}`}>{mark}</span>
+                <span className="w-16 shrink-0 pt-0.5 text-[10px] font-black uppercase tracking-wider text-white/50">{DIFF_KIND[change.kind] || change.kind}</span>
+                <p className="min-w-0 flex-1 text-sm leading-6 text-white/90">{change.text}{labels[0] && <Cite inline label={labels[0]} extra={labels.length - 1} onOpen={() => onOpen({ labels, claim: { text: change.text } })}/>}</p>
+              </li>
+            })}</ul>}
+  </section>
+}
+
 function DateFacts({ facts, onOpen }) {
   if (!facts) return null
   const w = facts.weather
@@ -257,7 +309,7 @@ function DateFacts({ facts, onOpen }) {
   </section>
 }
 
-function BriefingScreen({ brief, ctx, date, lang, setDate, loadBriefing, loading, grounding, toggleGrounding, briefingText, judges, animate, onAnimated, eventDays, error, scene }) {
+function BriefingScreen({ brief, ctx, date, lang, setDate, shift, onCloseShift, loadBriefing, loading, grounding, toggleGrounding, briefingText, judges, animate, onAnimated, eventDays, error, scene }) {
   const [activeSentence, setActiveSentence] = useState(-1)
   const [evidence, setEvidence] = useState(null)
   const openEvidence = useCallback(label => setEvidence({ labels: [label] }), [])
@@ -271,6 +323,7 @@ function BriefingScreen({ brief, ctx, date, lang, setDate, loadBriefing, loading
     <div className="fixed right-16 z-40" style={{ top: 'calc(var(--header-h, 74px) + 12px)' }}><ReadAloud text={briefingText} lang={lang} onSentence={setActiveSentence}/></div>
     {activeSentence >= 0 && <div className="rounded-2xl border border-orange-200/25 bg-orange-300/10 p-4"><p className="text-[10px] font-black uppercase tracking-[.2em] text-orange-200">Now reading</p><p className="mt-2 text-sm font-bold leading-6 text-orange-50">{splitSentences(briefingText)[activeSentence]}</p></div>}
     <div className="glass rounded-3xl p-4"><DateScrubber lang={lang} date={date} range={ctx?.date_range} events={eventDays || []} onChange={value => setDate(value)}/></div>
+    <DateDiff shift={shift} cityId={ctx?.city?.city_id} onOpen={setEvidence} onClose={onCloseShift}/>
     <DateFacts facts={ctx?.date_facts} onOpen={openEvidence}/>
     {brief && SECTIONS.some(key => brief.sections?.[key]?.extractive) && <div className="rounded-2xl border border-amber-300/30 bg-amber-300/10 p-4 text-xs font-bold text-amber-100">The AI model is unreachable right now, so each section quotes its source passage verbatim. Still grounded: every line is cited.</div>}
     {!brief ? (error ? <div className="rounded-3xl border border-white/10 p-6 text-white/60">No briefing loaded yet.</div> : <Loading/>) : brief ? <div className="space-y-4">{brief.events_today?.length ? <div className="rounded-2xl border border-[#ff6b57]/40 bg-[#ff6b57]/10 p-4 text-sm font-bold text-orange-50">{brief.events_today.map(event => event.name + ' · ' + event.start_date + '–' + event.end_date).join(' · ')}</div> : null}<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">{BRIEFING_GRID.map(key => { const section = brief.sections?.[key]; if (!section) return null; if (section.type !== 'answer') return <article key={key} className="rounded-3xl border-l-2 border-rose-300 bg-rose-400/10 p-5"><h2 className="text-lg font-black">{t(lang, key)}</h2><p className="mt-3 text-sm leading-6 text-white/75">{section.message || 'This section could not be grounded from the available sources.'}</p></article>; const claims = section.claims || []; const sources = []; return <article key={key} className="glass rounded-3xl p-5"><h2 className="flex items-center gap-2 text-lg font-black">{key === 'weather' && <span className="text-lime-300"><WeatherIcon condition={ctx?.weather_today?.condition}/></span>}{t(lang, key)}{judges && <MvpPill>MVP · Grounded briefing with sources</MvpPill>}</h2><div className="mt-4 space-y-3 text-sm leading-7 text-white/85">{claims.map(claim => { const index = claimIndex++; const visible = typewriter.visible[index] || ''; const done = !animate || typewriter.complete || visible.length >= String(claim.text || '').length; (claim.source_labels || []).forEach(source => sources.push(source)); const labels = claim.source_labels || []; return <p key={index}>{visible}{done && labels[0] && <Cite inline n={index + 1} label={labels[0]} extra={labels.length - 1} onOpen={() => { typewriter.skip(); setEvidence({ labels, claim }) }}/>}</p> })}</div>{section.dropped?.length > 0 && <p className="mt-4 text-xs font-bold text-white/55">{section.dropped.length} unsupported sentence{section.dropped.length > 1 ? 's were' : ' was'} removed</p>}<SourceReceipt sources={[...new Set(sources)]} onOpen={openEvidence}/></article> })}</div></div> : <div className="rounded-3xl border border-white/10 p-6 text-white/60">No briefing loaded yet.</div>}<EvidenceDrawer open={evidence} onClose={closeEvidence} cityId={ctx?.city?.city_id} forDate={date}/>
@@ -413,7 +466,9 @@ export default function App() {
   useEffect(() => { if (tab !== 'now' || !ctx) return; const timer = setTimeout(loadNow, 300); return () => clearTimeout(timer) }, [tab, ctx, time, budget, windowMinutes, loadNow])
   useEffect(() => { if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return; const lenis = new Lenis({ duration: 1.05, smoothWheel: true, allowNestedScroll: true }); let id; const raf = value => { lenis.raf(value); id = requestAnimationFrame(raf) }; id = requestAnimationFrame(raf); return () => { cancelAnimationFrame(id); lenis.destroy() } }, [])
   const go = async id => { setTab(id); window.scrollTo({ top: 0, behavior: 'smooth' }); if (id === 'nearby' && !places) await loadNearby(); if (id === 'now') await loadNow() }
-  const changeDate = value => { setDate(value); loadContext(pos, value) }
+  // The date a shift came from, so the briefing can show what moved. Kept per city.
+  const [shift, setShift] = useState(null)
+  const changeDate = value => { if (date && value && value !== date) setShift({ from: date, to: value, cityId: ctx?.city?.city_id }); setDate(value); loadContext(pos, value) }
   const changeLanguage = value => { setLang(value); localStorage.setItem('geoguide-language', value); if (ctx) { animatedBriefings.current.add(ctx.city.city_id + '-' + date + '-' + value); loadBriefing(date, value) } }
   const briefingKey = ctx ? ctx.city.city_id + '-' + date + '-' + lang : ''
   const onAnimated = useCallback(() => { if (briefingKey) animatedBriefings.current.add(briefingKey) }, [briefingKey])
@@ -421,5 +476,5 @@ export default function App() {
   const ask = async text => { const value = (text ?? question).trim(); if (!value || !ctx || asking) return; const session = chatSession.current; setQuestion(''); setChat(c => [...c, { me: true, text: value }]); setAsking(true); try { const answer = await api.ask(value, ctx.city.city_id, lang, session); if (session === chatSession.current) setChat(c => [...c, { me: false, answer }]) } catch { setError(offlineAt || !navigator.onLine ? 'You are offline. Saved briefings and places still work; questions need a connection.' : 'Ask could not be answered by the backend.') } finally { setAsking(false) } }
   const briefingText = useMemo(() => brief ? SECTIONS.map(key => brief.sections?.[key]).filter(s => s?.type === 'answer').flatMap(s => s.claims.map(c => c.text)).join(' ') : '', [brief])
   const judgeLabel = { arrive: 'MVP · Location and context', briefing: 'MVP · Grounded briefing with sources', nearby: 'MVP · Nearby, attributed', now: 'MVP · Contextual action engine', ask: 'MVP · Grounded Q&A' }[tab]
-  return <div className="min-h-screen bg-[#080b0a] text-white selection:bg-lime-300 selection:text-black"><TopNav tab={tab} go={go} ctx={ctx} date={date} lang={lang} languages={ctx?.languages} onLanguage={changeLanguage} onDate={changeDate} onCity={city => geo.selectPreset(city)} events={eventDays} scene={scene} onScene={toggleScene}/><JudgesControl judges={judges} setJudges={setJudges} onProof={() => { setProofOpen(true); loadHealth() }}/>{judges && <div className="mx-auto flex max-w-[1600px] flex-wrap gap-2 px-5 pt-3 sm:px-10"><MvpPill>{judgeLabel}</MvpPill><MvpPill>Enhancement · Date-shift</MvpPill><MvpPill>MVP · Multilingual</MvpPill></div>}{offlineAt && <div role="status" className="mx-auto max-w-[1600px] px-5 pt-4 sm:px-10"><div className="flex flex-wrap items-center gap-3 rounded-2xl border border-amber-300/30 bg-amber-300/10 px-4 py-2.5 text-sm font-bold text-amber-100"><span className="h-2 w-2 shrink-0 rounded-full bg-amber-300"/><span>Offline · showing saved data from {new Date(offlineAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. Briefings, places and hotels you have opened still work; questions need a connection.</span><button type="button" onClick={() => loadContext(pos, date)} className="ml-auto rounded-full border border-amber-300/40 px-3 py-1 text-xs font-black hover:bg-amber-300/15">Retry</button></div></div>}{error && <div role="alert" className="mx-auto max-w-[1600px] px-5 pt-5 sm:px-10"><div className="rounded-2xl border border-rose-300/40 bg-rose-400/10 p-4 text-sm font-bold text-rose-100">{error}</div></div>}<main className="mx-auto max-w-[1600px] px-5 py-6 sm:px-10">{tab === 'arrive' && <ArriveScreen ctx={ctx} places={places} brief={brief} geo={geo} go={go} onCity={city => geo.selectPreset(city)} judges={judges} scene={scene}/>} {tab === 'briefing' && <BriefingScreen brief={brief} ctx={ctx} date={date} lang={lang} setDate={changeDate} loadBriefing={loadBriefing} loading={briefLoading} grounding={grounding} toggleGrounding={toggleProofGrounding} briefingText={briefingText} judges={judges} animate={!animatedBriefings.current.has(briefingKey)} onAnimated={onAnimated} eventDays={eventDays} error={error} scene={scene}/>} {tab === 'nearby' && <NearbyScreen places={places} loading={loading} lang={lang}/>} {tab === 'now' && <NowScreen picks={picks} places={places} loading={loading} time={time} setTime={setTime} budget={budget} setBudget={setBudget} windowMinutes={windowMinutes} setWindowMinutes={setWindowMinutes} lang={lang} selected={selected} setSelected={setSelected} centre={{ ...pos, name: ctx?.city?.name || 'Your location' }}/>} {tab === 'ask' && <AskScreen cityName={ctx?.city?.name || geo.selectedCity} cityId={ctx?.city?.city_id} date={date} question={question} setQuestion={setQuestion} ask={ask} chat={chat} lang={lang} judges={judges} suggestions={askSuggestions} onNewChat={resetChat} asking={asking}/>}</main><BriefingPopup ctx={ctx} date={date} lang={lang}/>{proofOpen && <ProofDrawer health={health} grounding={grounding} onGrounding={toggleProofGrounding} onClose={() => setProofOpen(false)}/>}</div>
+  return <div className="min-h-screen bg-[#080b0a] text-white selection:bg-lime-300 selection:text-black"><TopNav tab={tab} go={go} ctx={ctx} date={date} lang={lang} languages={ctx?.languages} onLanguage={changeLanguage} onDate={changeDate} onCity={city => geo.selectPreset(city)} events={eventDays} scene={scene} onScene={toggleScene}/><JudgesControl judges={judges} setJudges={setJudges} onProof={() => { setProofOpen(true); loadHealth() }}/>{judges && <div className="mx-auto flex max-w-[1600px] flex-wrap gap-2 px-5 pt-3 sm:px-10"><MvpPill>{judgeLabel}</MvpPill><MvpPill>Enhancement · Date-shift</MvpPill><MvpPill>MVP · Multilingual</MvpPill></div>}{offlineAt && <div role="status" className="mx-auto max-w-[1600px] px-5 pt-4 sm:px-10"><div className="flex flex-wrap items-center gap-3 rounded-2xl border border-amber-300/30 bg-amber-300/10 px-4 py-2.5 text-sm font-bold text-amber-100"><span className="h-2 w-2 shrink-0 rounded-full bg-amber-300"/><span>Offline · showing saved data from {new Date(offlineAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. Briefings, places and hotels you have opened still work; questions need a connection.</span><button type="button" onClick={() => loadContext(pos, date)} className="ml-auto rounded-full border border-amber-300/40 px-3 py-1 text-xs font-black hover:bg-amber-300/15">Retry</button></div></div>}{error && <div role="alert" className="mx-auto max-w-[1600px] px-5 pt-5 sm:px-10"><div className="rounded-2xl border border-rose-300/40 bg-rose-400/10 p-4 text-sm font-bold text-rose-100">{error}</div></div>}<main className="mx-auto max-w-[1600px] px-5 py-6 sm:px-10">{tab === 'arrive' && <ArriveScreen ctx={ctx} places={places} brief={brief} geo={geo} go={go} onCity={city => geo.selectPreset(city)} judges={judges} scene={scene}/>} {tab === 'briefing' && <BriefingScreen brief={brief} ctx={ctx} date={date} lang={lang} setDate={changeDate} shift={shift && shift.cityId === ctx?.city?.city_id && shift.to === date ? shift : null} onCloseShift={() => setShift(null)} loadBriefing={loadBriefing} loading={briefLoading} grounding={grounding} toggleGrounding={toggleProofGrounding} briefingText={briefingText} judges={judges} animate={!animatedBriefings.current.has(briefingKey)} onAnimated={onAnimated} eventDays={eventDays} error={error} scene={scene}/>} {tab === 'nearby' && <NearbyScreen places={places} loading={loading} lang={lang}/>} {tab === 'now' && <NowScreen picks={picks} places={places} loading={loading} time={time} setTime={setTime} budget={budget} setBudget={setBudget} windowMinutes={windowMinutes} setWindowMinutes={setWindowMinutes} lang={lang} selected={selected} setSelected={setSelected} centre={{ ...pos, name: ctx?.city?.name || 'Your location' }}/>} {tab === 'ask' && <AskScreen cityName={ctx?.city?.name || geo.selectedCity} cityId={ctx?.city?.city_id} date={date} question={question} setQuestion={setQuestion} ask={ask} chat={chat} lang={lang} judges={judges} suggestions={askSuggestions} onNewChat={resetChat} asking={asking}/>}</main><BriefingPopup ctx={ctx} date={date} lang={lang}/>{proofOpen && <ProofDrawer health={health} grounding={grounding} onGrounding={toggleProofGrounding} onClose={() => setProofOpen(false)}/>}</div>
 }
