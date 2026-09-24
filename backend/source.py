@@ -16,7 +16,7 @@ ROW_KEYS = {
     "safety_advisories": ("advisory_id", "adv_"),
     "activities_poi": ("poi_id", "poi_"),
 }
-FIELD = re.compile(r"^(.*?)\s*\(([a-z_]+)\)$")
+FIELD = re.compile(r"^(.*?)\s*\(([a-z_/]+)\)$")
 EMPTY = re.compile(r"^events_festivals · 0 rows on (\d{4}-\d{2}-\d{2})$")
 
 
