@@ -2,11 +2,14 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import * as api from './api.js'
 import { t } from './i18n.js'
 import Icon from './components/Icon.jsx'
-import { Caution, SectionCard, Skeleton, Speak, SourceChip, TimeBadge } from './components/Bits.jsx'
+import { Caution, EmptyState, SectionCard, Skeleton, Speak, SourceChip, TimeBadge } from './components/Bits.jsx'
 import DateScrubber from './components/DateScrubber.jsx'
 import Clock from './components/Clock.jsx'
 import PlaceMap from './components/PlaceMap.jsx'
 import HereNow from './components/HereNow.jsx'
+import JourneyMap from './components/JourneyMap.jsx'
+import JourneyTimeline from './components/JourneyTimeline.jsx'
+import { JOURNEY_WAYPOINTS } from './journeyData.js'
 import { FIXTURE_BRIEFING } from './fixtures.js'
 
 const SECTIONS = ['history', 'attractions', 'events', 'weather', 'culture_etiquette', 'safety']
@@ -18,10 +21,10 @@ const TABS = [
   { id: 'ask', icon: 'chat', label: 'tab_ask' }
 ]
 const PRESETS = [
-  { name: 'Bengaluru', lat: 12.971599, lng: 77.594566, note: 'quiet week' },
-  { name: 'Hyderabad', lat: 17.385044, lng: 78.486671, note: 'festival on now' },
-  { name: 'Pune', lat: 18.520430, lng: 73.856744, note: 'live advisory' },
-  { name: 'Mumbai', lat: 19.075984, lng: 72.877656, note: 'rain today' }
+  { name: 'Bengaluru', lat: 12.971599, lng: 77.594566, note: 'quiet week', status: 'SCHEDULE CLEAR', tone: 'clear' },
+  { name: 'Hyderabad', lat: 17.385044, lng: 78.486671, note: 'festival on now', status: 'LIVE EVENT', tone: 'live' },
+  { name: 'Pune', lat: 18.520430, lng: 73.856744, note: 'live advisory', status: 'ACTIVE ADVISORY', tone: 'advisory' },
+  { name: 'Mumbai', lat: 19.075984, lng: 72.877656, note: 'rain today', status: 'RAIN FORECAST', tone: 'rain' }
 ]
 const SUGGESTED = [
   'Do I need to remove my shoes at temples?',
@@ -50,12 +53,35 @@ export default function App() {
   const [thinking, setThinking] = useState(false)
   const [offline, setOffline] = useState(false)
   const [grounding, setGrounding] = useState(true)
+  const [theme, setTheme] = useState(() => {
+    const saved = globalThis.localStorage?.getItem('geoguide-theme')
+    if (saved === 'light' || saved === 'dark') return saved
+    return globalThis.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  })
+  const [accessibilityMode, setAccessibilityMode] = useState(() =>
+    globalThis.localStorage?.getItem('geoguide-accessibility') === 'true'
+  )
   const [toast, setToast] = useState(null)
+  const [dateChanged, setDateChanged] = useState(false)
+  const [placesError, setPlacesError] = useState(false)
+  const [picksError, setPicksError] = useState(false)
   const [fix, setFix] = useState(null)      // real device fix, when permission is granted
   const [sel, setSel] = useState(null)      // place selected on the map or in a list
+  const [journeySelected, setJourneySelected] = useState(JOURNEY_WAYPOINTS[0].id)
   const chatEnd = useRef(null)
 
   const flash = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2600) }
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    globalThis.localStorage?.setItem('geoguide-theme', theme)
+  }, [theme])
+  useEffect(() => {
+    globalThis.localStorage?.setItem('geoguide-accessibility', String(accessibilityMode))
+    document.documentElement.dataset.accessibility = accessibilityMode ? 'true' : 'false'
+  }, [accessibilityMode])
+
+  const toggleTheme = () => setTheme(current => current === 'dark' ? 'light' : 'dark')
 
   const loadContext = useCallback(async (p, d) => {
     try {
@@ -96,24 +122,30 @@ export default function App() {
 
   const changeDate = async (d) => {
     setDate(d)
+    setDateChanged(true)
+    window.setTimeout(() => setDateChanged(false), 1800)
     await fetchBriefing(d)
-    if (tab === 'nearby' && ctx) api.nearby(ctx.city.city_id, pos.lat, pos.lng, d).then(setPlaces).catch(() => {})
-    if (tab === 'now' && ctx) api.now(ctx.city.city_id, pos.lat, pos.lng, at, d, budget).then(setPicks).catch(() => {})
+    if (tab === 'nearby' && ctx) api.nearby(ctx.city.city_id, pos.lat, pos.lng, d).then(setPlaces).catch(() => setPlacesError(true))
+    if (tab === 'now' && ctx) api.now(ctx.city.city_id, pos.lat, pos.lng, at, d, budget).then(setPicks).catch(() => setPicksError(true))
   }
 
   const refreshPicks = useCallback(async (time = at, b = budget, d = date) => {
     if (!ctx) return
-    try { setPicks(await api.now(ctx.city.city_id, pos.lat, pos.lng, time, d, b)) } catch {}
+    try { setPicksError(false); setPicks(await api.now(ctx.city.city_id, pos.lat, pos.lng, time, d, b)) } catch { setPicksError(true) }
   }, [ctx, pos, at, budget, date])
 
   const go = async (id) => {
     setTab(id)
     if (!ctx) return
     if (id === 'briefing' && !brief) fetchBriefing()
-    if (id === 'nearby') api.nearby(ctx.city.city_id, pos.lat, pos.lng, date).then(setPlaces).catch(() => setOffline(true))
+    if (id === 'nearby') {
+      setPlacesError(false)
+      api.nearby(ctx.city.city_id, pos.lat, pos.lng, date).then(setPlaces).catch(() => { setPlacesError(true); setOffline(true) })
+    }
     if (id === 'now') {
+      setPicksError(false)
       refreshPicks()
-      if (!places) api.nearby(ctx.city.city_id, pos.lat, pos.lng, date).then(setPlaces).catch(() => {})
+      if (!places) api.nearby(ctx.city.city_id, pos.lat, pos.lng, date).then(setPlaces).catch(() => setPlacesError(true))
     }
   }
 
@@ -163,7 +195,7 @@ export default function App() {
     .filter(s => s?.type === 'answer').map(s => s.claims.map(c => c.text).join(' ')).join(' ') : ''
 
   return (
-    <>
+    <div className={`app-root ${accessibilityMode ? 'accessibility-mode' : ''}`}>
       <div className="field" aria-hidden="true"><span /><span /><span /><span /></div>
 
       <header className="topbar">
@@ -171,31 +203,76 @@ export default function App() {
           <span className="brand"><Icon name="compass" size={20} style={{ color: 'var(--moss)' }} /> GeoGuide</span>
           {ctx && <span className="pill">{ctx.city.name}</span>}
           {date && <span className="pill">{date}</span>}
+          <button className="btn ghost theme-toggle" onClick={toggleTheme}
+                  aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+                  title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}>
+            <span className={`theme-glyph ${theme}`} aria-hidden="true" />
+            <span className="theme-label">{theme === 'dark' ? t(lang, 'light_theme') : t(lang, 'dark_theme')}</span>
+          </button>
+          <button className={`btn ghost accessibility-toggle ${accessibilityMode ? 'on' : ''}`}
+                  onClick={() => setAccessibilityMode(current => !current)}
+                  aria-label={accessibilityMode ? 'Disable accessibility mode' : 'Enable accessibility mode'}
+                  aria-pressed={accessibilityMode}
+                  title={accessibilityMode ? 'Disable accessibility mode' : 'Enable accessibility mode'}>
+            <Icon name="eye" size={17} />
+          </button>
           <button className={`btn ghost ${voice ? 'on' : ''}`} onClick={() => setVoice(v => !v)}
                   aria-label={t(lang, 'voice')}><Icon name="speaker" size={16} /></button>
         </div>
       </header>
 
-      <main className="shell">
+      <aside className="desktop-rail" aria-label="Primary navigation">
+        <div className="rail-brand"><Icon name="compass" size={21} /></div>
+        <span className="rail-label">Explore</span>
+        {TABS.map(x => (
+          <button key={x.id} className={`rail-item ${tab === x.id ? 'on' : ''}`} onClick={() => go(x.id)}
+                  aria-label={t(lang, x.label)} aria-current={tab === x.id ? 'page' : undefined}>
+            <Icon name={x.icon} size={18} /><span>{t(lang, x.label)}</span>
+          </button>
+        ))}
+        <div className="rail-spacer" />
+        <span className="rail-caption">GEOGUIDE<br />FIELD NOTES</span>
+      </aside>
+
+      <main className={`shell ${tab === 'arrive' ? 'dashboard-shell' : ''}`}>
         {offline && <div className="banner warn">{t(lang, 'offline')}</div>}
         {!grounding && <div className="banner clay">{t(lang, 'grounding_off')} — {t(lang, 'proof')}</div>}
 
         {tab === 'arrive' && (
-          <>
+          <div className="dashboard-arrive">
+            {ctx && (
+              <div className="arrive-context reveal" aria-label="Current context">
+                <div className="context-cell"><Icon name="calendar" size={17} /><span><b>{ctx.date}</b><small>today</small></span></div>
+                <div className="context-cell"><Icon name="compass" size={17} /><span><b>{String(ctx.season).replace('_', ' ')}</b><small>season framing</small></span></div>
+                <div className="context-cell"><Icon name="cloud" size={17} /><span><b>{ctx.weather_today ? String(ctx.weather_today.condition).replace('_', ' ') : '—'}</b><small>{ctx.weather_today?.temp_max_c != null ? `${ctx.weather_today.temp_min_c}–${ctx.weather_today.temp_max_c}°C` : 'ambient weather'}</small></span></div>
+              </div>
+            )}
             {ctx ? (
               <HereNow ctx={ctx} lang={lang}
                        onOpenBriefing={() => { setTab('briefing'); fetchBriefing() }}
                        onOpenNow={() => go('now')} />
             ) : <Skeleton />}
 
-            <section className="panel solid reveal">
-              <div className="spread">
-                <h3><Icon name="pin" size={18} style={{ color: 'var(--moss)' }} /> {t(lang, 'use_location')}</h3>
-                <button className="btn cta" style={{ padding: '9px 18px' }} onClick={locate}>
-                  <Icon name="pin" size={16} /> {fix ? 'Re-detect' : t(lang, 'use_location')}
-                </button>
+            <section className="journey-panel reveal">
+              <JourneyTimeline waypoints={JOURNEY_WAYPOINTS} selectedId={journeySelected} onSelect={setJourneySelected} />
+              <JourneyMap waypoints={JOURNEY_WAYPOINTS} selectedId={journeySelected} onSelect={setJourneySelected} />
+            </section>
+
+            <section className="panel solid reveal location-hero">
+              <div className="location-copy">
+                <span className="eyebrow">Start with your signal</span>
+                <h2>Find your place in the city</h2>
+                <p className="muted">{t(lang, 'permission_why')}</p>
               </div>
-              <p className="muted" style={{ marginTop: 8 }}>{t(lang, 'permission_why')}</p>
+              <button className="location-target" onClick={locate}>
+                <span className="target-mark"><span className="target-pulse" /><Icon name="target" size={27} /></span>
+                <span><b>{fix ? 'Re-detect location' : t(lang, 'use_location')}</b><small>Private, one-tap city matching</small></span>
+                <span className="target-arrow" aria-hidden="true">→</span>
+              </button>
+              <div className="location-meta">
+                <span><Icon name="shield" size={14} /> Device-only permission</span>
+                {fix && <span className="fix-badge">Signal locked · ±{fix.accuracy} m</span>}
+              </div>
               {fix && (
                 <dl className="kv">
                   <dt>{t(lang, 'coords')}</dt>
@@ -206,13 +283,14 @@ export default function App() {
               )}
             </section>
 
-            <section className="panel reveal">
+            <section className="panel reveal trust-panel">
               <span className="eyebrow">{t(lang, 'cities')}</span>
-              <div className="city-grid" style={{ marginTop: 10 }}>
+              <div className="city-grid editorial-city-grid" style={{ marginTop: 14 }}>
                 {PRESETS.map(p => (
                   <button key={p.name} className={`city-card ${ctx?.city?.name === p.name ? 'on' : ''}`}
                           onClick={() => pickCity(p)}>
-                    <b>{p.name}</b><span className="muted">{p.note}</span>
+                    <span className="city-card-top"><span className={`status-dot ${p.tone}`} /><span className={`city-status ${p.tone}`}>{p.status}</span></span>
+                    <b>{p.name}</b><span className="muted">{p.note}</span><span className="city-card-arrow" aria-hidden="true">↗</span>
                   </button>
                 ))}
               </div>
@@ -234,13 +312,9 @@ export default function App() {
                 </button>
               </div>
               <p className="muted" style={{ marginTop: 14 }}>{t(lang, 'trust')}</p>
-              <button className="btn cta" style={{ marginTop: 12 }}
-                      onClick={() => { setTab('briefing'); fetchBriefing() }}>
-                {t(lang, 'brief_me')} →
-              </button>
             </section>
 
-            <section className="panel tight reveal">
+            <section className="panel tight reveal advanced-panel">
               <div className="spread">
                 <div>
                   <b>{t(lang, 'grounding_toggle')}</b>
@@ -251,13 +325,13 @@ export default function App() {
                 </button>
               </div>
             </section>
-          </>
+          </div>
         )}
 
         {tab === 'briefing' && (
           <>
             <DateScrubber lang={lang} date={date} range={brief?.date_range || ctx?.date_range}
-                          events={dateInfo?.events} onChange={changeDate} />
+                          events={dateInfo?.events} onChange={changeDate} changed={dateChanged} />
             <section className="panel reveal">
               <div className="spread">
                 <div>
@@ -277,7 +351,10 @@ export default function App() {
               {brief?.next_event && brief.time_state !== 'on_now' && (
                 <p className="muted" style={{ marginTop: 8 }}>Next: {brief.next_event.name}, {brief.next_event.start_date}</p>
               )}
-              <div className="strip">
+              <div className="at-glance">
+                <div><span className="eyebrow">{t(lang, 'at_glance')}</span><span className="muted">{t(lang, 'signals_for')} {brief?.date || date}</span></div>
+              </div>
+              <div className="strip signal-strip">
                 <div className="stat"><div className="k">{t(lang, 'events')}</div>
                   <div className="v">{brief?.events_today?.length || 0}</div></div>
                 <div className="stat"><div className="k">season</div>
@@ -310,6 +387,10 @@ export default function App() {
             </section>
             <section className="panel solid reveal">
               <h2>{t(lang, 'places')}</h2>
+              {placesError && <div className="banner clay">{t(lang, 'offline')}</div>}
+              {!placesError && places && !(places.pois || []).length && (
+                <EmptyState icon="compass" title={t(lang, 'places')} message={t(lang, 'nothing_fits')} />
+              )}
               {(places?.pois || []).map(p => (
                 <div className={`item ${sel === p.poi_id ? 'sel' : ''}`} key={p.poi_id}
                      onClick={() => setSel(p.poi_id)}>
@@ -362,9 +443,14 @@ export default function App() {
                         centre={{ lat: pos.lat, lng: pos.lng, name: ctx?.city?.name }}
                         at={at} selected={sel} onSelect={setSel} />
             </section>
-            <section className="panel solid reveal">
+            <section className="panel solid reveal now-feature">
+              <div className="now-header">
+                <div><span className="eyebrow">{t(lang, 'signature_signal')}</span><h2>{t(lang, 'now')}</h2><p className="muted">{t(lang, 'ranked_shortlist')}</p></div>
+                <span className="now-orbit"><Icon name="clock" size={20} /></span>
+              </div>
+              {picksError && <div className="banner clay">{t(lang, 'offline')}</div>}
               {(picks?.picks || []).map((p, i) => (
-                <div className="item" key={p.poi_id}>
+                <div className="item recommendation-card" key={p.poi_id}>
                   <div className="spread">
                     <span className="row" onClick={() => setSel(p.poi_id)} style={{ cursor: 'pointer' }}>
                       <span className="rank">{i + 1}</span><b>{p.name}</b></span>
@@ -374,6 +460,7 @@ export default function App() {
                   <div><SourceChip label={p.source_label} /></div>
                 </div>
               ))}
+              {!picks && !picksError && <Skeleton />}
               {picks && picks.picks.length === 0 && (
                 <div>
                   <h3><Icon name="clock" size={18} style={{ color: 'var(--clay)' }} /> {t(lang, 'nothing_open')} — {picks.at}</h3>
@@ -399,7 +486,6 @@ export default function App() {
                   <div><SourceChip label="activities_poi" /></div>
                 </div>
               )}
-              {!picks && <Skeleton />}
             </section>
           </>
         )}
@@ -456,6 +542,6 @@ export default function App() {
           </button>
         ))}
       </nav>
-    </>
+    </div>
   )
 }
