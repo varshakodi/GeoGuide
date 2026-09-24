@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import './styles.css'
+import './theme-light.css'
 
 const savedTheme = globalThis.localStorage?.getItem('geoguide-theme')
 const initialTheme = savedTheme === 'light' || savedTheme === 'dark'

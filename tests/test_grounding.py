@@ -61,6 +61,18 @@ def test_every_shown_claim_carries_a_source():
     assert len(claims) == 1 and claims[0]["source_labels"] and dropped
 
 
+def test_citation_after_the_full_stop_stays_with_its_sentence():
+    passages = [Passage(1, "body", "KV Place Guide / Bengaluru / food", 0.6)]
+    claims, dropped = parse("Street food is best mid-morning. [1] Hello there!", passages)
+    assert [c["text"] for c in claims] == ["Street food is best mid-morning."]
+    assert dropped == ["Hello there!"]
+
+
+def test_a_bare_citation_is_never_a_claim():
+    claims, dropped = parse("[1]", [Passage(1, "body", "L", 0.6)])
+    assert claims == [] and dropped == ["[1]"]
+
+
 def test_uncited_output_becomes_a_refusal(monkeypatch):
     monkeypatch.setattr(pipeline, "generate", lambda s, u: "Everything here is wonderful.")
     monkeypatch.setattr(pipeline, "retrieve",
