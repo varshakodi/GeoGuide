@@ -189,3 +189,35 @@ input[type=range] { accent-color: var(--moss); width: 100%; }
   .panel { padding: 16px 16px; }
   .tab span.lbl { font-size: 12px; }
 }
+
+/* ---------- clock dial ---------- */
+.clock { touch-action: none; cursor: pointer; user-select: none; }
+.clock:focus-visible { outline: 2.5px solid var(--moss-2); outline-offset: 4px; border-radius: 50%; }
+
+/* ---------- data strip ---------- */
+.strip { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.stat { background: rgba(255,255,255,.72); border: 1px solid var(--edge); border-radius: var(--r-sm); padding: 8px 12px; min-width: 96px; }
+.stat .k { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--ink-3); }
+.stat .v { font-size: 15px; font-weight: 650; }
+
+/* ---------- key-value rows ---------- */
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; font-size: 14px; margin-top: 6px; }
+.kv dt { color: var(--ink-3); }
+.kv dd { margin: 0; }
+
+/* ---------- place map ---------- */
+.map { display: block; }
+.map .pin { cursor: pointer; }
+.map .pin:hover circle, .map .pin:hover rect { filter: brightness(1.1); }
+.dotk { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.dotk.sq { border-radius: 2px; }
+
+/* ---------- here, now ---------- */
+.nowlist { margin-top: 14px; display: grid; gap: 10px; }
+.nowrow { display: grid; grid-template-columns: 24px 1fr; gap: 11px; align-items: start; padding: 11px 13px; border-radius: var(--r-md); background: rgba(255,255,255,.62); border: 1px solid var(--edge); }
+.nowrow svg { color: var(--ink-3); margin-top: 2px; }
+.nowrow.now { background: var(--clay-bg); border-color: rgba(184,85,47,.3); }
+.nowrow.now svg { color: var(--clay); }
+.nowrow.warn { background: var(--ochre-bg); border-color: rgba(186,130,24,.35); }
+.nowrow.warn svg { color: var(--ochre); }
+.item.sel { background: var(--moss-bg); border-radius: var(--r-sm); padding-left: 10px; padding-right: 10px; }

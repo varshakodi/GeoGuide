@@ -1,0 +1,90 @@
+import React, { useMemo, useState } from 'react'
+import { t } from '../i18n.js'
+
+const W = 660, H = 380, PAD = 34
+const mins = s => Number(String(s).slice(0, 2)) * 60 + Number(String(s).slice(3, 5))
+
+export const isOpenAt = (p, hhmm) => {
+  if (p.closed_today || !p.opens_at) return false
+  const now = mins(hhmm)
+  return mins(p.opens_at) <= now && now < (p.closes_at ? mins(p.closes_at) : 1440)
+}
+
+/** Places drawn from their own lat/lng — no map tiles, nothing fetched.
+    Pins follow the clock: open places stay moss, closed ones fade out, so dragging
+    the time visibly shuts the city down. */
+export default function PlaceMap({ lang, pois = [], hotels = [], centre, at = '15:00', onSelect, selected }) {
+  const [hover, setHover] = useState(null)
+  const pts = useMemo(() => {
+    const all = [...pois.map(p => ({ ...p, kind: 'poi' })), ...hotels.map(h => ({ ...h, kind: 'hotel' }))]
+      .filter(p => typeof p.lat === 'number' && typeof p.lng === 'number')
+    if (!all.length || !centre) return { items: [], scale: 1 }
+    // Equirectangular around the centre: good enough at city scale, and offline.
+    const kx = 111.32 * Math.cos(centre.lat * Math.PI / 180), ky = 110.57
+    const rel = all.map(p => ({ ...p, dx: (p.lng - centre.lng) * kx, dy: -(p.lat - centre.lat) * ky }))
+    const span = Math.max(2, ...rel.map(p => Math.max(Math.abs(p.dx), Math.abs(p.dy)))) * 1.15
+    const scale = (Math.min(W, H) / 2 - PAD) / span
+    return {
+      items: rel.map(p => ({ ...p, x: W / 2 + p.dx * scale, y: H / 2 + p.dy * scale })),
+      scale, span
+    }
+  }, [pois, hotels, centre])
+
+  if (!pts.items.length) return null
+  const rings = [2, 5, 10].filter(km => km * pts.scale < Math.min(W, H) / 2 - 10)
+  const active = hover || pts.items.find(p => (p.poi_id || p.hotel_id) === selected)
+
+  return (
+    <div>
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" className="map"
+           aria-label={`Places near ${centre?.name || 'you'}`}>
+        <rect x="0" y="0" width={W} height={H} rx="16" fill="rgba(255,255,255,.55)" stroke="rgba(74,69,60,.16)" />
+        {rings.map(km => (
+          <g key={km}>
+            <circle cx={W / 2} cy={H / 2} r={km * pts.scale} fill="none"
+                    stroke="rgba(60,90,67,.22)" strokeDasharray="4 6" />
+            <text x={W / 2 + 4} y={H / 2 - km * pts.scale + 13} fontSize="11" fill="var(--ink-3)">{km} km</text>
+          </g>
+        ))}
+        {pts.items.map(p => {
+          const id = p.poi_id || p.hotel_id
+          const open = p.kind === 'poi' ? isOpenAt(p, at) : true
+          const on = id === selected || id === hover?.poi_id || id === hover?.hotel_id
+          const fill = p.kind === 'hotel' ? '#B8552F' : (open ? '#3C5A43' : 'rgba(74,69,60,.28)')
+          return (
+            <g key={id} className="pin" onClick={() => onSelect?.(id)}
+               onMouseEnter={() => setHover(p)} onMouseLeave={() => setHover(null)}>
+              {p.kind === 'hotel'
+                ? <rect x={p.x - 5} y={p.y - 5} width="10" height="10" rx="2" fill={fill}
+                        stroke="#fff" strokeWidth={on ? 2.5 : 1.5} />
+                : <circle cx={p.x} cy={p.y} r={on ? 9 : 6} fill={fill} stroke="#fff" strokeWidth={on ? 2.5 : 1.5} />}
+            </g>
+          )
+        })}
+        <circle cx={W / 2} cy={H / 2} r="9" fill="#fff" stroke="var(--moss)" strokeWidth="3" />
+        <circle cx={W / 2} cy={H / 2} r="3.5" fill="var(--moss)" />
+        <line x1={PAD} y1={H - 22} x2={PAD + 2 * pts.scale} y2={H - 22} stroke="var(--ink-3)" strokeWidth="2" />
+        <text x={PAD} y={H - 28} fontSize="11" fill="var(--ink-3)">2 km</text>
+        {active && (
+          <g transform={`translate(${Math.min(Math.max(active.x, 90), W - 90)}, ${active.y > 60 ? active.y - 44 : active.y + 26})`}>
+            <rect x="-88" y="-20" width="176" height="36" rx="9" fill="rgba(31,29,26,.92)" />
+            <text x="0" y="-5" textAnchor="middle" fontSize="12.5" fill="#fff">
+              {String(active.name).slice(0, 24)}
+            </text>
+            <text x="0" y="9" textAnchor="middle" fontSize="11" fill="rgba(255,255,255,.75)">
+              {active.kind === 'hotel'
+                ? `${active.star_rating}★ · ${active.distance_to_centre_km} km`
+                : `${active.distance_km} km · ${isOpenAt(active, at) ? `open till ${active.closes_at || '—'}` : t(lang, 'closed')}`}
+            </text>
+          </g>
+        )}
+      </svg>
+      <div className="row" style={{ marginTop: 8, fontSize: 13 }}>
+        <span className="row" style={{ gap: 6 }}><i className="dotk" style={{ background: '#3C5A43' }} /> open at {at}</span>
+        <span className="row" style={{ gap: 6 }}><i className="dotk" style={{ background: 'rgba(74,69,60,.28)' }} /> closed</span>
+        <span className="row" style={{ gap: 6 }}><i className="dotk sq" style={{ background: '#B8552F' }} /> hotel</span>
+        <span className="muted">drawn from activities_poi.lat/lng — no map service</span>
+      </div>
+    </div>
+  )
+}
