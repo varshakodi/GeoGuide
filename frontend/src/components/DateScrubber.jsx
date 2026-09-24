@@ -4,7 +4,13 @@ const iso = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStar
 const month = date => date.toLocaleDateString('en-IN', { month: 'short' })
 const weekday = date => date.toLocaleDateString('en-IN', { weekday: 'short' })
 
+<<<<<<< HEAD
 export default function DateScrubber({ date, range, events = [], onChange }) {
+=======
+/** The mandatory enhancement, made tappable: every date the dataset covers, with the
+    days that have an event marked, so a judge can land on a festival in one tap. */
+export default function DateScrubber({ lang, date, range, events, onChange, changed }) {
+>>>>>>> origin/master
   const trackRef = useRef(null)
   const days = useMemo(() => {
     if (!range?.min || !range?.max) return []
@@ -34,12 +40,25 @@ export default function DateScrubber({ date, range, events = [], onChange }) {
   const activeIndex = Math.max(0, days.findIndex(day => iso(day) === date))
   const shift = amount => { const next = days[activeIndex + amount]; if (next) onChange(iso(next)) }
 
+<<<<<<< HEAD
   return <section aria-label="Travel through time" className="overflow-hidden rounded-3xl border border-white/10 bg-[#111813] p-4 sm:p-5">
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div>
         <p className="text-[10px] font-black uppercase tracking-[.25em] text-lime-300">Time travel</p>
         <p className="mt-2 text-xl font-black">Move through your trip.</p>
         <p className="mt-1 text-xs font-bold text-white/50">{days.length} days in the GeoGuide dataset · {events.length ? `${events.length} event${events.length > 1 ? 's' : ''} flagged` : 'event days appear in coral'}</p>
+=======
+  return (
+    <section className={`panel scrub ${changed ? 'date-updated' : ''}`} aria-live={changed ? 'polite' : undefined}>
+      <div className="spread">
+        <span className="eyebrow">{t(lang, 'date')} {changed && <span className="updated-badge">{t(lang, 'updated')}</span>}</span>
+        <div className="row">
+          <button className="btn ghost" onClick={() => shift(-1)} aria-label="previous day">←</button>
+          <input type="date" value={date} min={range.min} max={range.max}
+                 onChange={e => onChange(e.target.value)} aria-label={t(lang, 'date')} />
+          <button className="btn ghost" onClick={() => shift(1)} aria-label="next day">→</button>
+        </div>
+>>>>>>> origin/master
       </div>
       <div className="flex items-center gap-2">
         <button type="button" onClick={() => shift(-1)} disabled={activeIndex === 0} aria-label="Previous day" className="grid h-9 w-9 place-items-center rounded-full border border-white/15 text-lg font-black text-white/70 transition hover:border-lime-300 hover:text-white disabled:opacity-25">←</button>

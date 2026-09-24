@@ -46,16 +46,49 @@ def briefing_context(city_id, name, for_date):
             "season": season, "peak_season": peak}, cur, up, season, peak
 
 
+def _open_at(poi, hhmm):
+    """Open at a clock time, treating a missing closing time as open-ended."""
+    if poi.get("closed_today") or not poi.get("opens_at"):
+        return False
+    m = lambda t: int(str(t)[:2]) * 60 + int(str(t)[3:5])
+    now = m(hhmm)
+    return m(poi["opens_at"]) <= now < (m(poi["closes_at"]) if poi.get("closes_at") else 24 * 60)
+
+
 @router.get("/context")
-def context(lat: float, lng: float, for_date: str = None):
+def context(lat: float, lng: float, for_date: str = None, at: str = None):
+    """Place, date, season — plus the composed "here, now" the first screen shows.
+    Every element carries the table it came from, so the hero is as sourced as the briefing."""
+    from datetime import datetime
     city = dq.nearest_city(lat, lng)
-    d, rng = dq.clamp_date(city["city_id"], for_date or default_date())
-    w = dq.weather(city["city_id"], d)
-    season, peak = dq.season_for(city["city_id"], d)
-    return {"city": city, "date": d, "season": season, "peak_season": peak,
+    cid = city["city_id"]
+    d, rng = dq.clamp_date(cid, for_date or default_date())
+    at = at or datetime.now().strftime("%H:%M")
+    w = dq.weather(cid, d)
+    season, peak = dq.season_for(cid, d)
+    cur, up = dq.events(cid, d)
+    adv = dq.advisories(cid, _as_dt(d))
+    pois = dq.pois(cid, lat, lng, limit=30, for_date=d)
+    open_now = [p for p in pois if _open_at(p, at)]
+    return {"city": city, "date": d, "at": at, "season": season, "peak_season": peak,
             "date_range": rng, "weather_today": w[0] if w else None,
-            "languages": dq.languages_for(city["city_id"]),
-            "grounding_enabled": config.GROUNDING_ENABLED}
+            "languages": dq.languages_for(cid),
+            "grounding_enabled": config.GROUNDING_ENABLED,
+            "now": {
+                "events": [{"name": e["name"], "start_date": e["start_date"], "end_date": e["end_date"],
+                            "source_label": f"events_festivals / {city['name']}"} for e in cur],
+                "next_event": ({"name": up[0]["name"], "start_date": up[0]["start_date"],
+                                "source_label": f"events_festivals / {city['name']}"} if up else None),
+                "advisory": ({"level": adv[0]["level"], "type": adv[0]["advisory_type"],
+                              "title": adv[0]["title"],
+                              "source_label": f"safety_advisories / {city['name']}"} if adv else None),
+                "weather_source": f"weather_daily / {city['name']}",
+                "open_count": len(open_now),
+                "nearest_open": ({"name": open_now[0]["name"], "distance_km": open_now[0]["distance_km"],
+                                  "closes_at": open_now[0]["closes_at"],
+                                  "entry_cost": open_now[0]["entry_cost"], "currency": open_now[0]["currency"],
+                                  "source_label": "activities_poi"} if open_now else None)
+            }}
 
 
 @router.get("/dates")

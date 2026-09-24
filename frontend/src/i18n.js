@@ -26,6 +26,15 @@ const S = {
     coords: 'Coordinates', from_centre: 'from the city centre', resolved: 'Resolved to',
     morning: 'Morning', noon: 'Noon', evening: 'Evening', night: 'Night',
     for_this_date: 'For this date', no_advisory: 'no advisory', window: 'next 90 min', tab_arrive: 'Arrive', tab_brief: 'Briefing', tab_near: 'Nearby', tab_now: 'Now', tab_ask: 'Ask',
+<<<<<<< HEAD
+=======
+    hero_lede: 'Your grounded guide to what matters before you step out.',
+    live_signals: 'live signals', open_nearby: 'open nearby', safety_clear: 'safety', high_today: 'high today',
+    at_glance: 'At a glance', signals_for: 'Signals for', updated: 'updated',
+    signature_signal: 'signature signal', ranked_shortlist: 'A transparent shortlist, ranked for your time and budget.',
+    dark_theme: 'Dark', light_theme: 'Light',
+    journey_kicker: 'Your city story begins here', todays_route: "TODAY'S ROUTE",
+>>>>>>> origin/master
   },
   hi: {
     arrive: 'पहुँचे', briefing: 'ब्रीफ़िंग', nearby: 'आस-पास', now: 'अभी', ask: 'पूछें',
