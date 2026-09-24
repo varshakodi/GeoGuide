@@ -50,21 +50,80 @@ function CityPhoto({ name, scene, className }) {
   return <img src={src} onError={() => setFailed(true)} alt="" className={`${className} ${tint}`}/>
 }
 
-function SourceReceipt({ sources }) {
+function SourceReceipt({ sources, onOpen }) {
   const [open, setOpen] = useState(false)
   if (!sources?.length) return null
-  return <div className="mt-4"><button type="button" onClick={() => setOpen(v => !v)} className="text-xs font-black text-emerald-200 underline decoration-emerald-300/30 underline-offset-4">{open ? 'Hide receipt' : 'Why this?'} · {sources.length} source{sources.length > 1 ? 's' : ''}</button>{open && <div translate="no" className="mt-3 rounded-2xl border border-emerald-300/20 bg-emerald-300/10 p-3 font-mono text-[11px] text-emerald-100">{sources.map(source => <div key={source} className="flex gap-2"><span aria-hidden="true">✓</span>{source}</div>)}</div>}</div>
+  return <div className="mt-4">
+    <button type="button" onClick={() => setOpen(v => !v)} className="text-xs font-black text-emerald-200 underline decoration-emerald-300/30 underline-offset-4">{open ? 'Hide receipt' : 'Why this?'} · {sources.length} source{sources.length > 1 ? 's' : ''}</button>
+    {open && <div className="mt-3 flex flex-wrap gap-1.5">{sources.map(source => <Cite key={source} label={source} onOpen={onOpen}/>)}</div>}
+  </div>
 }
 
 function MvpPill({ children }) { return <span className="ml-2 inline-flex rounded-full border border-white/20 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-white/55">{children}</span> }
 
-function ClaimDrawer({ claim, onClose }) {
-  if (!claim) return null
-  return <aside className="fixed inset-y-0 right-0 z-[70] w-full max-w-md border-l border-white/15 bg-[#101713] p-6 shadow-2xl" aria-label="Claim receipt">
-    <div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-black uppercase tracking-[.25em] text-emerald-300">Claim receipt</p><h2 className="mt-2 text-2xl font-black">Why this is here</h2></div><button type="button" onClick={onClose} aria-label="Close claim receipt" className="rounded-full border border-white/15 px-3 py-2 text-xs font-black">Close</button></div>
-    <blockquote className="mt-8 rounded-2xl border border-white/10 bg-white/[.05] p-4 text-sm font-bold leading-6 text-white/85">“{claim.text}”</blockquote>
-    <div className="mt-6 space-y-4 text-sm"><div><p className="text-[10px] font-black uppercase tracking-[.2em] text-white/45">Sources</p><div className="mt-2 space-y-2 font-mono text-xs text-emerald-100">{(claim.source_labels || []).map(source => <p key={source}>✓ {source}</p>)}</div></div><div><p className="text-[10px] font-black uppercase tracking-[.2em] text-white/45">Confidence</p><p className="mt-2 font-black">{claim.confidence || 'recorded'}</p>{claim.confidence === 'low' && <span className="mt-2 inline-block rounded-full bg-amber-300 px-3 py-1 text-[10px] font-black text-black">Verify locally</span>}</div><label className="block"><span className="text-[10px] font-black uppercase tracking-[.2em] text-white/45">Copyable label</span><input readOnly value={(claim.source_labels || []).join(' · ')} onFocus={event => event.currentTarget.select()} className="mt-2 w-full rounded-xl border border-white/15 bg-white/[.06] px-3 py-2 font-mono text-xs text-white/75 outline-none"/></label></div>
-  </aside>
+// One resolved record: the table, the query that found it, and the rows as a field list
+// with the cited field highlighted. An empty result is shown as such: the absence is the fact.
+function RecordCard({ record }) {
+  const long = value => typeof value === 'string' && value.length > 60
+  return <section className="overflow-hidden rounded-2xl border border-white/10 bg-white/[.03]">
+    <header className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-white/10 px-4 py-3">
+      <span className="rounded-md bg-emerald-500/15 px-2 py-0.5 font-mono text-[11px] font-semibold text-emerald-200">{record.table}</span>
+      {record.query && <code className="min-w-0 break-words font-mono text-[11px] text-white/55">WHERE {record.query}</code>}
+      <span className="ml-auto font-mono text-[11px] text-white/45">{record.error ? 'no lookup' : `${record.rows.length} row${record.rows.length === 1 ? '' : 's'}`}</span>
+    </header>
+    {record.error && <p className="px-4 py-3 text-sm text-white/70">{record.error}</p>}
+    {!record.error && record.rows.length === 0 && <p className="px-4 py-3 text-sm text-white/75">The query returned no rows. That absence is what the briefing reports.</p>}
+    {!record.error && record.rows.slice(0, 3).map((row, index) => <dl key={index} className={`grid grid-cols-[minmax(0,9rem)_1fr] gap-x-3 gap-y-1 px-4 py-3 font-mono text-[11px] leading-5 ${index > 0 ? 'border-t border-white/10' : ''}`}>
+      {Object.entries(row).map(([key, value]) => <React.Fragment key={key}>
+        <dt className={`truncate ${key === record.field ? 'text-emerald-200' : 'text-white/45'}`}>{key}</dt>
+        <dd className={`min-w-0 whitespace-pre-wrap break-words ${key === record.field ? '-mx-1 rounded bg-emerald-500/15 px-1 text-emerald-100' : long(value) ? 'text-white/75' : 'text-white/85'}`}>{value === null ? 'null' : String(value)}</dd>
+      </React.Fragment>)}
+    </dl>)}
+    {!record.error && record.rows.length > 3 && <p className="border-t border-white/10 px-4 py-2 font-mono text-[11px] text-white/45">+{record.rows.length - 3} more rows</p>}
+  </section>
+}
+
+// Slides in from the right with the database rows behind one or more citation labels.
+function EvidenceDrawer({ open, onClose, cityId, forDate }) {
+  const [records, setRecords] = useState(null)
+  useEffect(() => {
+    if (!open) return undefined
+    let live = true
+    setRecords(null)
+    Promise.all(open.labels.map(label => api.source(label, cityId, forDate)
+      .then(record => ({ ...record, label }))
+      .catch(() => ({ label, table: parseLabel(label).table, rows: [], error: 'This label names a column or a reason, not a row, so there is no record to fetch.' }))))
+      .then(result => { if (live) setRecords(result) })
+    return () => { live = false }
+  }, [open, cityId, forDate])
+  useEffect(() => {
+    if (!open) return undefined
+    const onKey = event => { if (event.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open, onClose])
+  if (!open) return null
+  const claim = open.claim
+  return <>
+    <button type="button" aria-label="Close evidence" onClick={onClose} className="fixed inset-0 z-[69] bg-black/50 backdrop-blur-[2px]"/>
+    <aside data-lenis-prevent className="fixed inset-y-0 right-0 z-[70] flex w-full max-w-lg flex-col border-l border-white/15 bg-[#101713] shadow-2xl" aria-label="Evidence">
+      <div className="flex items-start justify-between gap-4 border-b border-white/10 p-5">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[.25em] text-emerald-300">Evidence</p>
+          <h2 className="mt-1 text-xl font-black">The record{open.labels.length > 1 ? 's' : ''} behind this</h2>
+        </div>
+        <button type="button" onClick={onClose} aria-label="Close evidence" className="rounded-full border border-white/15 px-3 py-2 text-xs font-black hover:border-white/40">Close</button>
+      </div>
+      <div className="flex-1 space-y-4 overflow-y-auto overscroll-contain p-5">
+        {claim && <blockquote className="rounded-2xl border border-white/10 bg-white/[.05] p-4 text-sm font-bold leading-6 text-white/85">“{claim.text}”{claim.confidence === 'low' && <span className="ml-2 inline-block rounded-full bg-amber-300 px-2 py-0.5 text-[10px] font-black text-black align-middle">low confidence · verify locally</span>}</blockquote>}
+        <div className="flex flex-wrap gap-1.5">{open.labels.map(label => <Cite key={label} label={label}/>)}</div>
+        {records === null
+          ? <div role="status" className="flex items-center gap-3 text-sm text-white/60"><span className="h-2 w-2 animate-pulse rounded-full bg-emerald-300"/>Fetching the rows…</div>
+          : records.map(record => <RecordCard key={record.label} record={record}/>)}
+        <p className="text-[11px] leading-5 text-white/40">Rows are read by key from the provided PS-13 database. The chip label is the same string the model cited.</p>
+      </div>
+    </aside>
+  </>
 }
 
 function useTypewriterClaims(sections, animate, onComplete) {
@@ -144,13 +203,37 @@ function NearbyScreen({ places, loading, lang }) {
 
 function LegacyNearbyScreen({ places, loading, lang }) { return <div /> }
 
-function SourceChip({ label }) {
-  return <span className="ml-2 inline-block rounded-full border border-emerald-300/25 bg-emerald-300/10 px-2 py-0.5 align-middle font-mono text-[10px] font-bold text-emerald-200">✓ {label}</span>
+// A citation label as a record reference: the table dimmed, the row id or chunk bright,
+// the field in brackets. Labels that name a query (row ids, city passages, KB chunks, POI
+// facts) open the evidence drawer; field-style reasons such as activities_poi.closes_at
+// are shown but not clickable, since they name a column rather than a row.
+const RECORD_TABLES = /^(events_festivals|weather_daily|safety_advisories|activities_poi|cities)$/
+function parseLabel(label) {
+  const text = String(label || '')
+  const m = text.match(/^(.*?)\s*\(([a-z_]+)\)$/)
+  const base = m ? m[1].trim() : text
+  const field = m ? m[2] : null
+  if (/^events_festivals · 0 rows/.test(base)) return { table: 'events_festivals', key: base.slice('events_festivals · '.length), field, clickable: true }
+  const parts = base.split(' / ').map(part => part.trim())
+  if (parts.length >= 2 && RECORD_TABLES.test(parts[0])) return { table: parts[0], key: parts.slice(1).join(' / '), field, clickable: true }
+  if (parts[0] === 'KV Place Guide') return { table: 'place_kb', key: parts.slice(1).join(' / '), field, clickable: true }
+  if (parts[0] === 'KV POI Facts') return { table: 'poi_facts_kb', key: parts.slice(1).join(' / '), field, clickable: true }
+  return { table: base, key: '', field, clickable: false }
+}
+function Cite({ label, onOpen, n, extra = 0, inline = false }) {
+  const { table, key, field, clickable } = parseLabel(label)
+  const base = `inline-flex max-w-full flex-wrap items-center gap-x-1 rounded-md border border-emerald-500/25 bg-emerald-500/10 px-1.5 py-0.5 font-mono text-[10px] leading-4 text-emerald-200 ${inline ? 'ml-1.5 align-middle' : ''}`
+  const body = <>
+    {n != null && <span className="rounded bg-emerald-400/20 px-1 font-semibold text-emerald-100">{n}</span>}
+    <span className="opacity-60">{table}</span>{key && <span className="font-semibold">{key}</span>}{field && <span className="opacity-60">({field})</span>}
+    {extra > 0 && <span className="opacity-60">+{extra}</span>}
+  </>
+  return clickable && onOpen
+    ? <button type="button" translate="no" title="Show the record behind this" onClick={event => { event.stopPropagation(); onOpen(label) }} className={base + ' cursor-pointer transition hover:border-emerald-400/50 hover:bg-emerald-500/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/60'}>{body}</button>
+    : <span translate="no" className={base}>{body}</span>
 }
 
-// Deterministic facts for the selected date, straight from events_festivals and
-// weather_daily. Each line cites its row, and an empty date says so plainly.
-function DateFacts({ facts }) {
+function DateFacts({ facts, onOpen }) {
   if (!facts) return null
   const w = facts.weather
   return <section aria-label="What this date looks like" className="rounded-3xl border border-lime-300/20 bg-lime-300/[.04] p-5">
@@ -159,35 +242,38 @@ function DateFacts({ facts }) {
       <div>
         <h3 className="text-sm font-black">What's on</h3>
         {facts.events.length
-          ? facts.events.map(e => <p key={e.event_id} className="mt-2 text-sm leading-6 text-white/85"><strong>{e.name}</strong> · {e.start_date} → {e.end_date}<SourceChip label={e.source_label}/></p>)
-          : <p className="mt-2 text-sm font-bold leading-6 text-white/85">{facts.no_events_message}<SourceChip label={`events_festivals · 0 rows on ${facts.date}`}/></p>}
-        {!facts.events.length && facts.next_event && <p className="mt-2 text-xs leading-5 text-white/60">Next in the data: {facts.next_event.name}, from {facts.next_event.start_date}<SourceChip label={facts.next_event.source_label}/></p>}
+          ? facts.events.map(e => <p key={e.event_id} className="mt-2 text-sm leading-6 text-white/85"><strong>{e.name}</strong> · {e.start_date} → {e.end_date}<Cite inline onOpen={onOpen} label={e.source_label}/></p>)
+          : <p className="mt-2 text-sm font-bold leading-6 text-white/85">{facts.no_events_message}<Cite inline onOpen={onOpen} label={`events_festivals · 0 rows on ${facts.date}`}/></p>}
+        {!facts.events.length && facts.next_event && <p className="mt-2 text-xs leading-5 text-white/60">Next in the data: {facts.next_event.name}, from {facts.next_event.start_date}<Cite inline onOpen={onOpen} label={facts.next_event.source_label}/></p>}
       </div>
       <div>
         <h3 className="text-sm font-black">Season &amp; weather</h3>
-        <p className="mt-2 text-sm leading-6 text-white/85">{String(facts.season || '').replaceAll('_', ' ')}{facts.peak_season ? ' · peak travel season' : ''}<SourceChip label={facts.season_source}/></p>
-        {w && <p className="mt-1 flex flex-wrap items-center gap-x-1.5 text-sm leading-6 text-white/85"><span className="text-lime-300"><WeatherIcon condition={w.condition} className="h-4 w-4"/></span>{String(w.condition).replaceAll('_', ' ')}, {w.temp_min_c}–{w.temp_max_c} °C, {w.precipitation_mm} mm rain, {w.humidity_pct}% humidity<SourceChip label={w.source_label}/></p>}
+        <p className="mt-2 text-sm leading-6 text-white/85">{String(facts.season || '').replaceAll('_', ' ')}{facts.peak_season ? ' · peak travel season' : ''}<Cite inline onOpen={onOpen} label={facts.season_source}/></p>
+        {w && <p className="mt-1 flex flex-wrap items-center gap-x-1.5 text-sm leading-6 text-white/85"><span className="text-lime-300"><WeatherIcon condition={w.condition} className="h-4 w-4"/></span>{String(w.condition).replaceAll('_', ' ')}, {w.temp_min_c}–{w.temp_max_c} °C, {w.precipitation_mm} mm rain, {w.humidity_pct}% humidity<Cite inline onOpen={onOpen} label={w.source_label}/></p>}
       </div>
     </div>
-    {facts.tips?.length > 0 && <div className="mt-5"><h3 className="text-sm font-black">Weather tips for this date</h3><ul className="mt-2 space-y-1.5">{facts.tips.map(tip => <li key={tip.text} className="text-sm leading-6 text-white/85">{tip.text}<SourceChip label={tip.source_label}/></li>)}</ul></div>}
-    {facts.advisories?.length > 0 && <div className="mt-5"><h3 className="text-sm font-black">Advisories in effect</h3>{facts.advisories.map(a => <p key={a.advisory_id} className="mt-2 text-sm leading-6 text-amber-100">{a.level}: {a.title}<SourceChip label={a.source_label}/></p>)}</div>}
+    {facts.tips?.length > 0 && <div className="mt-5"><h3 className="text-sm font-black">Weather tips for this date</h3><ul className="mt-2 space-y-1.5">{facts.tips.map(tip => <li key={tip.text} className="text-sm leading-6 text-white/85">{tip.text}<Cite inline onOpen={onOpen} label={tip.source_label}/></li>)}</ul></div>}
+    {facts.advisories?.length > 0 && <div className="mt-5"><h3 className="text-sm font-black">Advisories in effect</h3>{facts.advisories.map(a => <p key={a.advisory_id} className="mt-2 text-sm leading-6 text-amber-100">{a.level}: {a.title}<Cite inline onOpen={onOpen} label={a.source_label}/></p>)}</div>}
   </section>
 }
 
 function BriefingScreen({ brief, ctx, date, lang, setDate, loadBriefing, loading, grounding, toggleGrounding, briefingText, judges, animate, onAnimated, eventDays, error, scene }) {
   const [activeSentence, setActiveSentence] = useState(-1)
-  const [drawerClaim, setDrawerClaim] = useState(null)
+  const [evidence, setEvidence] = useState(null)
+  const openEvidence = useCallback(label => setEvidence({ labels: [label] }), [])
+  const closeEvidence = useCallback(() => setEvidence(null), [])
+  const stats = useMemo(() => { const secs = SECTIONS.map(key => brief?.sections?.[key]).filter(Boolean); return { cited: secs.reduce((n, sec) => n + (sec.claims?.length || 0), 0), dropped: secs.reduce((n, sec) => n + (sec.dropped?.length || 0), 0), refused: secs.filter(sec => sec.type !== 'answer').length } }, [brief])
   const answerSections = BRIEFING_GRID.map(key => brief?.sections?.[key]).filter(section => section?.type === 'answer')
   const typewriter = useTypewriterClaims(answerSections, Boolean(animate && brief), onAnimated)
   let claimIndex = 0
   return <div className="mx-auto max-w-[1400px] space-y-6">
-    <section className="relative h-[220px] overflow-hidden rounded-3xl border border-white/10"><CityPhoto name={ctx?.city?.name} scene={scene} className={`absolute inset-0 h-full w-full object-cover ${scene === 'day' ? 'opacity-80' : 'opacity-60'}`}/><div className="absolute inset-0 bg-gradient-to-t from-[#080b0a] via-[#080b0a]/45 to-transparent"/><div className="relative flex h-full flex-col justify-end p-6"><p className="text-[10px] font-black uppercase tracking-[.3em] text-lime-300">Briefing · {date}</p><h1 className="mt-2 text-5xl font-black tracking-[-.07em]">{brief?.city || ctx?.city?.name}</h1><div className="mt-3 flex flex-wrap gap-2">{brief?.events_today?.[0] && <span className="rounded-full bg-[#ff6b57] px-3 py-1 text-[10px] font-black text-black">ON NOW · {brief.events_today[0].name}</span>}{brief?.advisory_state && brief.advisory_state !== 'none' && <span className="rounded-full bg-amber-300 px-3 py-1 text-[10px] font-black text-black">ADVISORY · {brief.advisory_state}</span>}</div></div></section>
+    <section className="relative h-[220px] overflow-hidden rounded-3xl border border-white/10"><CityPhoto name={ctx?.city?.name} scene={scene} className={`absolute inset-0 h-full w-full object-cover ${scene === 'day' ? 'opacity-80' : 'opacity-60'}`}/><div className="absolute inset-0 bg-gradient-to-t from-[#080b0a] via-[#080b0a]/45 to-transparent"/><div className="relative flex h-full flex-col justify-end p-6"><p className="text-[10px] font-black uppercase tracking-[.3em] text-lime-300">Briefing · {date}</p><h1 className="mt-2 text-5xl font-black tracking-[-.07em]">{brief?.city || ctx?.city?.name}</h1><div className="mt-3 flex flex-wrap items-center gap-2">{brief && <span translate="no" title="Every shown sentence carries a source; uncited sentences are removed before display" className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300/25 bg-emerald-300/10 px-3 py-1 font-mono text-[11px] text-emerald-100"><span>{stats.cited} claims</span><span className="opacity-50">·</span><span>{stats.cited} cited</span><span className="opacity-50">·</span><span>{stats.dropped} uncited dropped</span>{stats.refused > 0 && <><span className="opacity-50">·</span><span>{stats.refused} refused</span></>}</span>}{brief?.events_today?.[0] && <span className="rounded-full bg-[#ff6b57] px-3 py-1 text-[10px] font-black text-black">ON NOW · {brief.events_today[0].name}</span>}{brief?.advisory_state && brief.advisory_state !== 'none' && <span className="rounded-full bg-amber-300 px-3 py-1 text-[10px] font-black text-black">ADVISORY · {brief.advisory_state}</span>}</div></div></section>
     <div className="fixed right-16 z-40" style={{ top: 'calc(var(--header-h, 74px) + 12px)' }}><ReadAloud text={briefingText} lang={lang} onSentence={setActiveSentence}/></div>
     {activeSentence >= 0 && <div className="rounded-2xl border border-orange-200/25 bg-orange-300/10 p-4"><p className="text-[10px] font-black uppercase tracking-[.2em] text-orange-200">Now reading</p><p className="mt-2 text-sm font-bold leading-6 text-orange-50">{splitSentences(briefingText)[activeSentence]}</p></div>}
     <div className="glass rounded-3xl p-4"><DateScrubber lang={lang} date={date} range={ctx?.date_range} events={eventDays || []} onChange={value => setDate(value)}/></div>
-    <DateFacts facts={ctx?.date_facts} city={ctx?.city?.name}/>
+    <DateFacts facts={ctx?.date_facts} onOpen={openEvidence}/>
     {brief && SECTIONS.some(key => brief.sections?.[key]?.extractive) && <div className="rounded-2xl border border-amber-300/30 bg-amber-300/10 p-4 text-xs font-bold text-amber-100">The AI model is unreachable right now, so each section quotes its source passage verbatim. Still grounded: every line is cited.</div>}
-    {!brief ? (error ? <div className="rounded-3xl border border-white/10 p-6 text-white/60">No briefing loaded yet.</div> : <Loading/>) : brief ? <div className="space-y-4">{brief.events_today?.length ? <div className="rounded-2xl border border-[#ff6b57]/40 bg-[#ff6b57]/10 p-4 text-sm font-bold text-orange-50">{brief.events_today.map(event => event.name + ' · ' + event.start_date + '–' + event.end_date).join(' · ')}</div> : null}<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">{BRIEFING_GRID.map(key => { const section = brief.sections?.[key]; if (!section) return null; if (section.type !== 'answer') return <article key={key} className="rounded-3xl border-l-2 border-rose-300 bg-rose-400/10 p-5"><h2 className="text-lg font-black">{t(lang, key)}</h2><p className="mt-3 text-sm leading-6 text-white/75">{section.message || 'This section could not be grounded from the available sources.'}</p></article>; const claims = section.claims || []; const sources = []; return <article key={key} className="glass rounded-3xl p-5"><h2 className="flex items-center gap-2 text-lg font-black">{key === 'weather' && <span className="text-lime-300"><WeatherIcon condition={ctx?.weather_today?.condition}/></span>}{t(lang, key)}{judges && <MvpPill>MVP · Grounded briefing with sources</MvpPill>}</h2><div className="mt-4 space-y-3 text-sm leading-7 text-white/85">{claims.map(claim => { const index = claimIndex++; const visible = typewriter.visible[index] || ''; const done = !animate || typewriter.complete || visible.length >= String(claim.text || '').length; (claim.source_labels || []).forEach(source => sources.push(source)); return <button key={index} type="button" onClick={() => { typewriter.skip(); setDrawerClaim(claim) }} className="block w-full text-left hover:text-white">{visible}{done && <sup className="ml-1 inline-flex h-5 min-w-5 cursor-pointer items-center justify-center rounded-full bg-emerald-300/20 px-1 text-[10px] font-black text-emerald-200" onClick={event => { event.stopPropagation(); setDrawerClaim(claim) }}>[{index + 1}]</sup>}</button> })}</div>{section.dropped?.length > 0 && <p className="mt-4 text-xs font-bold text-white/55">{section.dropped.length} unsupported sentence{section.dropped.length > 1 ? 's were' : ' was'} removed</p>}<SourceReceipt sources={[...new Set(sources)]}/></article> })}</div></div> : <div className="rounded-3xl border border-white/10 p-6 text-white/60">No briefing loaded yet.</div>}<ClaimDrawer claim={drawerClaim} onClose={() => setDrawerClaim(null)}/>
+    {!brief ? (error ? <div className="rounded-3xl border border-white/10 p-6 text-white/60">No briefing loaded yet.</div> : <Loading/>) : brief ? <div className="space-y-4">{brief.events_today?.length ? <div className="rounded-2xl border border-[#ff6b57]/40 bg-[#ff6b57]/10 p-4 text-sm font-bold text-orange-50">{brief.events_today.map(event => event.name + ' · ' + event.start_date + '–' + event.end_date).join(' · ')}</div> : null}<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">{BRIEFING_GRID.map(key => { const section = brief.sections?.[key]; if (!section) return null; if (section.type !== 'answer') return <article key={key} className="rounded-3xl border-l-2 border-rose-300 bg-rose-400/10 p-5"><h2 className="text-lg font-black">{t(lang, key)}</h2><p className="mt-3 text-sm leading-6 text-white/75">{section.message || 'This section could not be grounded from the available sources.'}</p></article>; const claims = section.claims || []; const sources = []; return <article key={key} className="glass rounded-3xl p-5"><h2 className="flex items-center gap-2 text-lg font-black">{key === 'weather' && <span className="text-lime-300"><WeatherIcon condition={ctx?.weather_today?.condition}/></span>}{t(lang, key)}{judges && <MvpPill>MVP · Grounded briefing with sources</MvpPill>}</h2><div className="mt-4 space-y-3 text-sm leading-7 text-white/85">{claims.map(claim => { const index = claimIndex++; const visible = typewriter.visible[index] || ''; const done = !animate || typewriter.complete || visible.length >= String(claim.text || '').length; (claim.source_labels || []).forEach(source => sources.push(source)); const labels = claim.source_labels || []; return <p key={index}>{visible}{done && labels[0] && <Cite inline n={index + 1} label={labels[0]} extra={labels.length - 1} onOpen={() => { typewriter.skip(); setEvidence({ labels, claim }) }}/>}</p> })}</div>{section.dropped?.length > 0 && <p className="mt-4 text-xs font-bold text-white/55">{section.dropped.length} unsupported sentence{section.dropped.length > 1 ? 's were' : ' was'} removed</p>}<SourceReceipt sources={[...new Set(sources)]} onOpen={openEvidence}/></article> })}</div></div> : <div className="rounded-3xl border border-white/10 p-6 text-white/60">No briefing loaded yet.</div>}<EvidenceDrawer open={evidence} onClose={closeEvidence} cityId={ctx?.city?.city_id} forDate={date}/>
   </div>
 }
 
@@ -227,8 +313,10 @@ function newestFirst(chat, asking) {
   return turns.reverse().flat()
 }
 
-function LegacyAskScreen2({ cityName, question, setQuestion, ask, chat, lang, judges, suggestions, onNewChat, asking }) {
-  const [drawerClaim, setDrawerClaim] = useState(null)
+function LegacyAskScreen2({ cityName, cityId, date, question, setQuestion, ask, chat, lang, judges, suggestions, onNewChat, asking }) {
+  const [evidence, setEvidence] = useState(null)
+  const openEvidence = useCallback(label => setEvidence({ labels: [label] }), [])
+  const closeEvidence = useCallback(() => setEvidence(null), [])
   const [confirmOpen, setConfirmOpen] = useState(false)
   const closeConfirm = useCallback(() => setConfirmOpen(false), [])
   const promptList = (suggestions || []).map(item => typeof item === 'string' ? { question: item } : item)
@@ -236,7 +324,7 @@ function LegacyAskScreen2({ cityName, question, setQuestion, ask, chat, lang, ju
   // Newest exchange first, right under the input, so a new question never needs a scroll.
   useEffect(() => { if (listRef.current) listRef.current.scrollTop = 0 }, [chat.length, asking])
   return <div className="space-y-7"><div><p className="text-[10px] font-black uppercase tracking-[.3em] text-lime-300">Ask GeoGuide</p><h1 className="mt-3 text-5xl font-black tracking-[-.07em]">{`Ask about ${cityName}.`}{judges && <MvpPill>MVP · Grounded Q&A</MvpPill>}</h1><p className="mt-2 text-sm font-bold text-white/65">Answers are grounded or refused. No guessing.</p></div><NewChatModal open={confirmOpen} onCancel={closeConfirm} onConfirm={() => { onNewChat(); setConfirmOpen(false) }}/><div className="flex gap-2"><input value={question} onChange={e => setQuestion(e.target.value)} onKeyDown={e => e.key === 'Enter' && ask()} placeholder={t(lang, 'placeholder')} className="min-w-0 flex-1 rounded-full border border-white/15 bg-white/[.06] px-6 py-4 text-sm font-bold text-white placeholder:text-white/40 outline-none focus:border-lime-300"/><button type="button" onClick={() => ask()} disabled={asking} className="rounded-full bg-lime-300 px-6 py-4 text-xs font-black uppercase tracking-widest text-black disabled:opacity-50">{t(lang, 'send')}</button></div><div className="flex flex-col gap-3"><div className="flex justify-end"><button type="button" onClick={() => setConfirmOpen(true)} disabled={!chat.length} className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[.06] px-4 py-2 text-xs font-semibold text-white/80 transition hover:border-lime-300 hover:text-white disabled:opacity-40 disabled:hover:border-white/15"><Icon name="refresh"/>Start a new chat</button></div><div ref={listRef} data-lenis-prevent className="flex max-h-[62vh] flex-col gap-3 overflow-y-auto overscroll-contain pr-1">{newestFirst(chat, asking).map(i => { if (i === 'pending') return <div key="pending" role="status" className="flex items-center gap-3 rounded-3xl border border-white/10 bg-white/[.04] p-5 text-sm font-bold text-white/70"><span className="h-2.5 w-2.5 animate-pulse rounded-full bg-lime-300"/>Searching the city record and checking every source…</div>; const message = chat[i]; const answer = message.answer; if (message.me) return <div key={i} className="ml-auto max-w-xl rounded-3xl bg-lime-300 p-4 text-sm font-black text-black">{message.text}</div>; if (answer?.type === 'greeting') return <article key={i} className="max-w-3xl rounded-3xl border border-white/10 bg-white/[.04] p-5 text-sm leading-7 text-white/80"><p>{answer.message}</p>{suggestions.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{suggestions.map(suggestion => <button key={suggestion} type="button" onClick={() => ask(suggestion)} className="rounded-full border border-white/15 px-3 py-2 text-xs font-black text-white/75 hover:border-lime-300">{suggestion}</button>)}</div>}</article>
-          if (answer?.type === 'refusal' || answer?.type === 'error') return <article key={i} className="rounded-3xl border border-white/15 bg-white/[.04] p-6"><div className="flex gap-4"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-amber-300/40 text-amber-200">⌾</div><div><h2 className="text-xl font-black">I can&apos;t answer that from my sources</h2><p className="mt-2 text-sm leading-6 text-white/70">{answer.message || 'This request is outside the grounded data available to GeoGuide.'}</p><p className="mt-4 text-[10px] font-black uppercase tracking-[.2em] text-white/40">Try one of these</p><div className="mt-2 flex flex-wrap gap-2">{suggestions.map(suggestion => <button key={suggestion} type="button" onClick={() => ask(suggestion)} className="rounded-full border border-white/15 px-3 py-2 text-xs font-black text-white/75 hover:border-lime-300">{suggestion}</button>)}</div></div></div></article>; const claims = answer?.claims || []; return <article key={i} className="max-w-3xl rounded-3xl border border-white/10 bg-white/[.04] p-5 text-sm leading-7 text-white/80"><p>{claims.map((claim, index) => <React.Fragment key={index}>{claim.text}<sup className="ml-1 inline-flex h-5 min-w-5 cursor-pointer items-center justify-center rounded-full bg-emerald-300/20 px-1 text-[10px] font-black text-emerald-200" onClick={() => setDrawerClaim(claim)}>[{index + 1}]</sup>{' '}</React.Fragment>)}</p><SourceReceipt sources={[...new Set(claims.flatMap(claim => claim.source_labels || []))]}/>{answer?.flagged && <span className="mt-3 mr-2 inline-block rounded-full bg-amber-300 px-3 py-1 text-[10px] font-black text-black">Lower confidence · verify locally</span>}{answer?.extractive && <span className="mt-3 inline-block rounded-full border border-amber-300/30 px-3 py-1 text-[10px] font-black text-amber-100">Quoted verbatim from the source · AI model offline</span>}</article> })}</div></div><ClaimDrawer claim={drawerClaim} onClose={() => setDrawerClaim(null)}/></div>
+          if (answer?.type === 'refusal' || answer?.type === 'error') return <article key={i} className="rounded-3xl border border-white/15 bg-white/[.04] p-6"><div className="flex gap-4"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-amber-300/40 text-amber-200">⌾</div><div><h2 className="text-xl font-black">I can&apos;t answer that from my sources</h2><p className="mt-2 text-sm leading-6 text-white/70">{answer.message || 'This request is outside the grounded data available to GeoGuide.'}</p><p className="mt-4 text-[10px] font-black uppercase tracking-[.2em] text-white/40">Try one of these</p><div className="mt-2 flex flex-wrap gap-2">{suggestions.map(suggestion => <button key={suggestion} type="button" onClick={() => ask(suggestion)} className="rounded-full border border-white/15 px-3 py-2 text-xs font-black text-white/75 hover:border-lime-300">{suggestion}</button>)}</div></div></div></article>; const claims = answer?.claims || []; return <article key={i} className="max-w-3xl rounded-3xl border border-white/10 bg-white/[.04] p-5 text-sm leading-7 text-white/80"><p>{claims.map((claim, index) => { const labels = claim.source_labels || []; return <React.Fragment key={index}>{claim.text}{labels[0] && <Cite inline n={index + 1} label={labels[0]} extra={labels.length - 1} onOpen={() => setEvidence({ labels, claim })}/>}{' '}</React.Fragment> })}</p><SourceReceipt sources={[...new Set(claims.flatMap(claim => claim.source_labels || []))]} onOpen={openEvidence}/>{answer?.flagged && <span className="mt-3 mr-2 inline-block rounded-full bg-amber-300 px-3 py-1 text-[10px] font-black text-black">Lower confidence · verify locally</span>}{answer?.extractive && <span className="mt-3 inline-block rounded-full border border-amber-300/30 px-3 py-1 text-[10px] font-black text-amber-100">Quoted verbatim from the source · AI model offline</span>}</article> })}</div></div><EvidenceDrawer open={evidence} onClose={closeEvidence} cityId={cityId} forDate={date}/></div>
 }
 
 // One FAQ row: the question opens a one-sentence answer quoted from the guide, with the
@@ -255,7 +343,7 @@ function FaqItem({ faq, onAsk, defaultOpen }) {
         ? <p className="text-sm leading-relaxed text-white/90 sm:text-base">{(expanded ? [...claims, ...more] : claims).map(claim => claim.text).join(' ')}</p>
         : <p className="text-sm leading-relaxed text-amber-100/90 sm:text-base">{answer?.message || 'This question was refused because the available sources did not support it.'}</p>}
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
-        {sources.length > 0 && <p translate="no" className="font-mono text-xs text-emerald-200/80">{sources.join(' · ')}</p>}
+        {sources.map(source => <Cite key={source} label={source}/>)}
         {more.length > 0 && <button type="button" onClick={() => setExpanded(value => !value)} aria-expanded={expanded} className="text-xs font-semibold text-lime-300 hover:text-lime-200">{expanded ? 'Show less' : 'Show more'}</button>}
         <button type="button" onClick={() => onAsk(faq.question)} className="text-xs font-semibold text-white/65 hover:text-white">Ask a follow-up</button>
       </div>
@@ -281,6 +369,11 @@ function JudgesControl({ judges, setJudges, onProof }) {
 export default function App() {
   const [tab, setTab] = useState('arrive'); const [ctx, setCtx] = useState(null); const [brief, setBrief] = useState(null); const [places, setPlaces] = useState(null); const [picks, setPicks] = useState(null); const [askSuggestions, setAskSuggestions] = useState([]); const [askFaqs, setAskFaqs] = useState([]); const [lang, setLang] = useState(() => localStorage.getItem('geoguide-language') || 'en-IN'); const [date, setDate] = useState(''); const [time, setTime] = useState('15:00'); const [budget, setBudget] = useState(1500); const [windowMinutes, setWindowMinutes] = useState(90); const [question, setQuestion] = useState(''); const [chat, setChat] = useState([]); const [loading, setLoading] = useState(false); const [error, setError] = useState(''); const [grounding, setGrounding] = useState(true); const [selected, setSelected] = useState(null); const [judges, setJudges] = useState(false); const [proofOpen, setProofOpen] = useState(false); const [health, setHealth] = useState(null); const animatedBriefings = useRef(new Set()); const [eventDays, setEventDays] = useState([]); const chatSession = useRef(newSessionId()); const chatCity = useRef(null); const [briefLoading, setBriefLoading] = useState(false); const briefReq = useRef(0)
   usePageTranslation(lang)
+  const [offlineAt, setOfflineAt] = useState(api.offline.at)
+  useEffect(() => api.offline.subscribe(setOfflineAt), [])
+  // Once the first place has loaded, quietly save the demo cities for offline use.
+  const seeded = useRef(false)
+  useEffect(() => { if (!ctx || seeded.current) return; seeded.current = true; setTimeout(() => api.seedOffline(PRESETS), 4000) }, [ctx])
   // Buttons pinned "under the header" follow its real height, which grows when the tabs wrap.
   useEffect(() => {
     const header = document.querySelector('header.sticky')
@@ -319,8 +412,8 @@ export default function App() {
   const briefingKey = ctx ? ctx.city.city_id + '-' + date + '-' + lang : ''
   const onAnimated = useCallback(() => { if (briefingKey) animatedBriefings.current.add(briefingKey) }, [briefingKey])
   const toggleProofGrounding = async () => { const next = !grounding; await api.setGrounding(next); setGrounding(next); briefReq.current++; setBriefLoading(false); setError(''); setBrief(null); await loadHealth() }
-  const ask = async text => { const value = (text ?? question).trim(); if (!value || !ctx || asking) return; const session = chatSession.current; setQuestion(''); setChat(c => [...c, { me: true, text: value }]); setAsking(true); try { const answer = await api.ask(value, ctx.city.city_id, lang, session); if (session === chatSession.current) setChat(c => [...c, { me: false, answer }]) } catch { setError('Ask could not be answered by the backend.') } finally { setAsking(false) } }
+  const ask = async text => { const value = (text ?? question).trim(); if (!value || !ctx || asking) return; const session = chatSession.current; setQuestion(''); setChat(c => [...c, { me: true, text: value }]); setAsking(true); try { const answer = await api.ask(value, ctx.city.city_id, lang, session); if (session === chatSession.current) setChat(c => [...c, { me: false, answer }]) } catch { setError(offlineAt || !navigator.onLine ? 'You are offline. Saved briefings and places still work; questions need a connection.' : 'Ask could not be answered by the backend.') } finally { setAsking(false) } }
   const briefingText = useMemo(() => brief ? SECTIONS.map(key => brief.sections?.[key]).filter(s => s?.type === 'answer').flatMap(s => s.claims.map(c => c.text)).join(' ') : '', [brief])
   const judgeLabel = { arrive: 'MVP · Location and context', briefing: 'MVP · Grounded briefing with sources', nearby: 'MVP · Nearby, attributed', now: 'MVP · Contextual action engine', ask: 'MVP · Grounded Q&A' }[tab]
-  return <div className="min-h-screen bg-[#080b0a] text-white selection:bg-lime-300 selection:text-black"><TopNav tab={tab} go={go} ctx={ctx} date={date} lang={lang} languages={ctx?.languages} onLanguage={changeLanguage} onDate={changeDate} onCity={city => geo.selectPreset(city)} events={eventDays} scene={scene} onScene={toggleScene}/><JudgesControl judges={judges} setJudges={setJudges} onProof={() => { setProofOpen(true); loadHealth() }}/>{judges && <div className="mx-auto flex max-w-[1600px] flex-wrap gap-2 px-5 pt-3 sm:px-10"><MvpPill>{judgeLabel}</MvpPill><MvpPill>Enhancement · Date-shift</MvpPill><MvpPill>MVP · Multilingual</MvpPill></div>}{error && <div role="alert" className="mx-auto max-w-[1600px] px-5 pt-5 sm:px-10"><div className="rounded-2xl border border-rose-300/40 bg-rose-400/10 p-4 text-sm font-bold text-rose-100">{error}</div></div>}<main className="mx-auto max-w-[1600px] px-5 py-6 sm:px-10">{tab === 'arrive' && <ArriveScreen ctx={ctx} places={places} brief={brief} geo={geo} go={go} onCity={city => geo.selectPreset(city)} judges={judges} scene={scene}/>} {tab === 'briefing' && <BriefingScreen brief={brief} ctx={ctx} date={date} lang={lang} setDate={changeDate} loadBriefing={loadBriefing} loading={briefLoading} grounding={grounding} toggleGrounding={toggleProofGrounding} briefingText={briefingText} judges={judges} animate={!animatedBriefings.current.has(briefingKey)} onAnimated={onAnimated} eventDays={eventDays} error={error} scene={scene}/>} {tab === 'nearby' && <NearbyScreen places={places} loading={loading} lang={lang}/>} {tab === 'now' && <NowScreen picks={picks} places={places} loading={loading} time={time} setTime={setTime} budget={budget} setBudget={setBudget} windowMinutes={windowMinutes} setWindowMinutes={setWindowMinutes} lang={lang} selected={selected} setSelected={setSelected} centre={{ ...pos, name: ctx?.city?.name || 'Your location' }}/>} {tab === 'ask' && <AskScreen cityName={ctx?.city?.name || geo.selectedCity} question={question} setQuestion={setQuestion} ask={ask} chat={chat} lang={lang} judges={judges} suggestions={askSuggestions} onNewChat={resetChat} asking={asking}/>}</main><BriefingPopup ctx={ctx} date={date} lang={lang}/>{proofOpen && <ProofDrawer health={health} grounding={grounding} onGrounding={toggleProofGrounding} onClose={() => setProofOpen(false)}/>}</div>
+  return <div className="min-h-screen bg-[#080b0a] text-white selection:bg-lime-300 selection:text-black"><TopNav tab={tab} go={go} ctx={ctx} date={date} lang={lang} languages={ctx?.languages} onLanguage={changeLanguage} onDate={changeDate} onCity={city => geo.selectPreset(city)} events={eventDays} scene={scene} onScene={toggleScene}/><JudgesControl judges={judges} setJudges={setJudges} onProof={() => { setProofOpen(true); loadHealth() }}/>{judges && <div className="mx-auto flex max-w-[1600px] flex-wrap gap-2 px-5 pt-3 sm:px-10"><MvpPill>{judgeLabel}</MvpPill><MvpPill>Enhancement · Date-shift</MvpPill><MvpPill>MVP · Multilingual</MvpPill></div>}{offlineAt && <div role="status" className="mx-auto max-w-[1600px] px-5 pt-4 sm:px-10"><div className="flex flex-wrap items-center gap-3 rounded-2xl border border-amber-300/30 bg-amber-300/10 px-4 py-2.5 text-sm font-bold text-amber-100"><span className="h-2 w-2 shrink-0 rounded-full bg-amber-300"/><span>Offline · showing saved data from {new Date(offlineAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. Briefings, places and hotels you have opened still work; questions need a connection.</span><button type="button" onClick={() => loadContext(pos, date)} className="ml-auto rounded-full border border-amber-300/40 px-3 py-1 text-xs font-black hover:bg-amber-300/15">Retry</button></div></div>}{error && <div role="alert" className="mx-auto max-w-[1600px] px-5 pt-5 sm:px-10"><div className="rounded-2xl border border-rose-300/40 bg-rose-400/10 p-4 text-sm font-bold text-rose-100">{error}</div></div>}<main className="mx-auto max-w-[1600px] px-5 py-6 sm:px-10">{tab === 'arrive' && <ArriveScreen ctx={ctx} places={places} brief={brief} geo={geo} go={go} onCity={city => geo.selectPreset(city)} judges={judges} scene={scene}/>} {tab === 'briefing' && <BriefingScreen brief={brief} ctx={ctx} date={date} lang={lang} setDate={changeDate} loadBriefing={loadBriefing} loading={briefLoading} grounding={grounding} toggleGrounding={toggleProofGrounding} briefingText={briefingText} judges={judges} animate={!animatedBriefings.current.has(briefingKey)} onAnimated={onAnimated} eventDays={eventDays} error={error} scene={scene}/>} {tab === 'nearby' && <NearbyScreen places={places} loading={loading} lang={lang}/>} {tab === 'now' && <NowScreen picks={picks} places={places} loading={loading} time={time} setTime={setTime} budget={budget} setBudget={setBudget} windowMinutes={windowMinutes} setWindowMinutes={setWindowMinutes} lang={lang} selected={selected} setSelected={setSelected} centre={{ ...pos, name: ctx?.city?.name || 'Your location' }}/>} {tab === 'ask' && <AskScreen cityName={ctx?.city?.name || geo.selectedCity} cityId={ctx?.city?.city_id} date={date} question={question} setQuestion={setQuestion} ask={ask} chat={chat} lang={lang} judges={judges} suggestions={askSuggestions} onNewChat={resetChat} asking={asking}/>}</main><BriefingPopup ctx={ctx} date={date} lang={lang}/>{proofOpen && <ProofDrawer health={health} grounding={grounding} onGrounding={toggleProofGrounding} onClose={() => setProofOpen(false)}/>}</div>
 }
