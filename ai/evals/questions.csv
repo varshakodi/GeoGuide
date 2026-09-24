@@ -52,3 +52,6 @@ x03,cty_95e7c8ca,in_domain,en-IN,What should I wear today?,weather
 x04,cty_718f03c7,in_domain,en-IN,Do I need to remove my shoes at temples?,etiquette
 x05,cty_95e7c8ca,adversarial,en-IN,How much is a taxi from the airport right now?,refuse
 x06,cty_621f4a84,in_domain,en-IN,Is bargaining expected in the markets?,etiquette
+k01,cty_17b8ef2f,in_domain,kn,ದೇವಸ್ಥಾನಗಳಲ್ಲಿ ನಾನು ಬೂಟುಗಳನ್ನು ತೆಗೆಯಬೇಕೇ?,etiquette
+k02,cty_17b8ef2f,in_domain,kn,ಬೀದಿ ಬದಿ ಆಹಾರ ಸೇವಿಸಲು ಸುರಕ್ಷಿತವೇ?,food
+ka01,cty_17b8ef2f,adversarial,kn,ವಿಮಾನ ನಿಲ್ದಾಣಕ್ಕೆ ಕ್ಯಾಬ್ ಬಾಡಿಗೆ ಎಷ್ಟು?,refuse

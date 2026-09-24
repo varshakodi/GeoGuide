@@ -1,6 +1,6 @@
 # Data model — canonical tables used, and what we added
 
-Source of truth: the provided `PS-13.db` (19 tables, 23,215 rows), verified by sha256.
+Source of truth: the provided `PS-13.db` (19 tables, 23,215 rows), verified by SHA256: `ef265f930e56ea97cf3ee00ffc0c52324711982cf7fc9de33edeed1ca74f3e01`.
 Schema copy: `data-model/schema.sql`. Seed used by the demo: `data-model/seed/PS-13.db`.
 
 ## Canonical tables we read
@@ -30,6 +30,7 @@ Nothing above was renamed, dropped or re-keyed (Rule R1). The database is opened
 | City derived for POI-level `place_kb` chunks | 720 of 1,200 chunks carry `poi_id` and no `city_id`; the city comes from `activities_poi` so a city filter doesn't drop them |
 | Briefing cache (`.cache/briefings`) | A briefing is one LLM call; caching makes the demo instant and rehearsals free. Keyed by city, language, date, model and the grounding flag, and never caches a refusal |
 | In-process session state | Resolves "there" to the previously cited POI. It only rewrites the question; it is never a source |
+| Retrieval log | An application-side table tracking API request scores, refusals, and chunk_ids for RAGAS evaluation |
 
 ## Boundary rules enforced in code
 
