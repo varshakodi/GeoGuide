@@ -41,7 +41,7 @@ def _gemini(system, user, rounds=3, wait=20):
             try:
                 r = _client(key).models.generate_content(
                     model=model, contents=user,
-                    config=types.GenerateContentConfig(system_instruction=system, temperature=0.2))
+                    config=types.GenerateContentConfig(system_instruction=system or None, temperature=0.2))
                 return (r.text or "").strip()
             except Exception as e:
                 last = e
@@ -61,8 +61,8 @@ def _gemini(system, user, rounds=3, wait=20):
 def _ollama(system, user):
     body = json.dumps({"model": config.OLLAMA_MODEL, "stream": False,
                        "options": {"temperature": 0.2},
-                       "messages": [{"role": "system", "content": system},
-                                    {"role": "user", "content": user}]}).encode()
+                       "messages": ([{"role": "system", "content": system}] if system else [])
+                                   + [{"role": "user", "content": user}]}).encode()
     req = urllib.request.Request(config.OLLAMA_URL, data=body,
                                  headers={"Content-Type": "application/json"})
     try:
@@ -82,7 +82,7 @@ def _claude(system, user):
     if _CLAUDE is None:
         _CLAUDE = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
     r = _CLAUDE.beta.messages.create(
-        model=config.ANTHROPIC_MODEL, max_tokens=4096, system=system,
+        model=config.ANTHROPIC_MODEL, max_tokens=4096, **({"system": system} if system else {}),
         messages=[{"role": "user", "content": user}],
         # Short grounded writing from given passages: low effort keeps the briefing fast.
         output_config={"effort": "low"},

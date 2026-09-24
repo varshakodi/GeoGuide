@@ -14,6 +14,7 @@ from . import session as sess
 from . import translate
 
 SYSTEM = (Path(__file__).parent / "prompts" / "system.txt").read_text(encoding="utf-8")
+QA = (Path(__file__).parent / "prompts" / "qa.txt").read_text(encoding="utf-8")
 SPLIT_SENT = re.compile(r"(?<=[.!?।])\s+")
 
 
@@ -21,10 +22,18 @@ def _system(max_sentences):
     return SYSTEM.format(sentinel=config.SENTINEL, max_sentences=max_sentences)
 
 
+def _context(passages):
+    return "\n".join(f"[{p.n}] ({p.source_label}) {p.text}" for p in passages)
+
+
+def _qa(lang, question, passages, max_sentences):
+    return QA.format(sentinel=config.SENTINEL, max_sentences=max_sentences, language=lang,
+                     context=_context(passages), query=question)
+
+
 def _user(lang, task, passages):
     lines = [f"Language: {lang}", f"Task: {task}", "", "Passages:"]
-    lines += [f"[{p.n}] ({p.source_label}) {p.text}" for p in passages]
-    return "\n".join(lines)
+    return "\n".join(lines) + "\n" + _context(passages)
 
 
 NAME = re.compile(r"\b[A-Z][a-zA-Z]+\b")
@@ -45,7 +54,9 @@ def unknown_names(question, passages):
 def _compose(lang, task, passages, max_sentences, question=None):
     """Calls the model and applies layers 2 and the citation check."""
     try:
-        raw = generate(_system(max_sentences), _user(lang, task, passages))
+        # Follow-up questions use the Q&A prompt (detail-preserving); briefing sections the system prompt.
+        raw = (generate(None, _qa(lang, question, passages, max_sentences)) if question
+               else generate(_system(max_sentences), _user(lang, task, passages)))
     except LLMUnavailable as e:
         # No model reachable: quote the best passage that already cleared the relevance
         # gate, verbatim and cited, rather than failing the question.
@@ -66,7 +77,45 @@ def _compose(lang, task, passages, max_sentences, question=None):
             "flagged": any(c["confidence"] in config.FLAG_CONFIDENCE for c in claims)}
 
 
-GREETING = re.compile(r"^\s*(hi+|hello|hey|namaste|namaskara|thanks|thank you|good (morning|afternoon|evening))\W*$", re.I)
+# Greetings and thanks, matched against the WHOLE message so "hi, how much is a cab?"
+# still goes through the refusal layers. The reply states no facts, so it needs no source.
+_SCRIPT_SAFE = re.compile(r"[^\w\s\u0900-\u097F\u0C80-\u0CFF]")
+_SMALLTALK = {
+    "greeting": re.compile(r"^(hi+|hello+|hey+|hiya|namaste|namaskara?|good (morning|afternoon|evening|day)"
+                           r"|who are you|what are you|what can you do|how are you"
+                           r"|नमस्ते|नमस्कार|हेलो|ನಮಸ್ಕಾರ|ಹಲೋ)( (there|geoguide|again))?$"),
+    "thanks": re.compile(r"^(thanks|thank you|thank you so much|thanks a lot|thx|ty"
+                         r"|धन्यवाद|शुक्रिया|ಧನ್ಯವಾದ|ಧನ್ಯವಾದಗಳು)( (so much|a lot|geoguide))?$"),
+}
+SMALLTALK_MESSAGES = {
+    "greeting": {
+        "en-IN": "Hello! I'm GeoGuide. I can help you with {city}'s history, top spots, safety tips, or what's happening nearby today. What would you like to know?",
+        "hi": "नमस्ते! मैं GeoGuide हूँ। मैं {city} के इतिहास, प्रमुख जगहों, सुरक्षा सुझावों या आज आस-पास क्या हो रहा है, इसमें आपकी मदद कर सकता हूँ। आप क्या जानना चाहेंगे?",
+        "kn": "ನಮಸ್ಕಾರ! ನಾನು GeoGuide. {city} ಇತಿಹಾಸ, ಪ್ರಮುಖ ತಾಣಗಳು, ಸುರಕ್ಷತಾ ಸಲಹೆಗಳು ಅಥವಾ ಇಂದು ಹತ್ತಿರದಲ್ಲಿ ಏನು ನಡೆಯುತ್ತಿದೆ ಎಂಬುದರ ಬಗ್ಗೆ ನಾನು ಸಹಾಯ ಮಾಡಬಲ್ಲೆ. ನೀವು ಏನು ತಿಳಿಯಲು ಬಯಸುತ್ತೀರಿ?",
+    },
+    "thanks": {
+        "en-IN": "You're welcome! Ask me anything else about {city}: history, places to visit, safety, or what's on.",
+        "hi": "आपका स्वागत है! {city} के बारे में कुछ और पूछिए: इतिहास, घूमने की जगहें, सुरक्षा या आज क्या हो रहा है।",
+        "kn": "ಸ್ವಾಗತ! {city} ಬಗ್ಗೆ ಇನ್ನೇನಾದರೂ ಕೇಳಿ: ಇತಿಹಾಸ, ನೋಡಬೇಕಾದ ಸ್ಥಳಗಳು, ಸುರಕ್ಷತೆ ಅಥವಾ ಇಂದು ಏನು ನಡೆಯುತ್ತಿದೆ.",
+    },
+}
+
+
+def smalltalk_kind(question):
+    q = " ".join(_SCRIPT_SAFE.sub(" ", question.lower()).split())
+    return next((kind for kind, rx in _SMALLTALK.items() if rx.match(q)), None)
+
+
+def smalltalk(kind, city_id, lang):
+    from .corpus import connect
+    con = connect()
+    row = con.execute("SELECT name FROM cities WHERE city_id = ?", (city_id,)).fetchone()
+    con.close()
+    msgs = SMALLTALK_MESSAGES[kind]
+    return {"type": "greeting", "kind": kind, "language": lang,
+            "message": msgs.get(lang, msgs["en-IN"]).format(city=row["name"] if row else "this city")}
+
+
 LOG = Path(config.CHROMA_PATH).parent / ".cache" / "retrieval_log.jsonl"
 
 
@@ -87,14 +136,14 @@ def log_retrieval(question, city_id, r, out):
 
 def answer_question(question, city_id, lang="en-IN", max_sentences=None, session_id=None):
     """Follow-up Q&A. Every turn re-retrieves; state only resolves references."""
-    if GREETING.match(question):
-        # Not a question, so neither an answer nor a refusal: point at what can be asked.
-        return {"type": "greeting", "language": lang,
-                "message": "Hello! I answer from GeoGuide's city records. Ask about places to "
-                           "visit, food, safety, the weather or what's on."}
     reason = check_intent(question)                                   # layer 3
     if reason:
         out = refusal(3, reason, lang)
+        log_retrieval(question, city_id, None, out)
+        return out
+    kind = smalltalk_kind(question)                                   # greetings skip retrieval
+    if kind:
+        out = smalltalk(kind, city_id, lang)
         log_retrieval(question, city_id, None, out)
         return out
     asked, note = sess.rewrite(session_id, question)
@@ -104,7 +153,7 @@ def answer_question(question, city_id, lang="en-IN", max_sentences=None, session
         log_retrieval(question, city_id, r, out)
         return out
     out = _compose(translate.generation_lang(lang), f"Answer the traveller's question: {asked}",
-                   r.passages, max_sentences or config.MAX_SENTENCES, question=asked)
+                   r.passages, max_sentences or config.QA_MAX_SENTENCES, question=asked)
     out = translate.translate_result(out, lang)
     if out.get("type") == "answer":
         out["top_score"] = round(r.top_score, 3)

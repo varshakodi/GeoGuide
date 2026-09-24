@@ -1080,7 +1080,14 @@ The city hero images in `frontend/public/cities/` are downloaded from Wikimedia 
 - Hyderabad: [Charminar Evening View Hyderabad.jpg](https://commons.wikimedia.org/wiki/File:Charminar_Evening_View_Hyderabad.jpg), free-use Wikimedia Commons upload.
 - Pune: [Pune Skyline.jpg](https://commons.wikimedia.org/wiki/File:Pune_Skyline.jpg), CC BY-SA 3.0, Tushar Mote.
 
-`default.jpg` is a local fallback copy of the Bengaluru image.
+Day and night variants for the day/night toggle, also from Wikimedia Commons (resized to 1920 px):
+
+- Bengaluru by day (`bengaluru-day.jpg`): [Vidhana Soudha, front (01).jpg](https://commons.wikimedia.org/wiki/File:Vidhana_Soudha,_front_(01).jpg), CC BY-SA 4.0, Moheen Reeyad.
+- Mumbai by night (`mumbai-night.jpg`): [Mumbai Skyline Marine Drive Night.jpg](https://commons.wikimedia.org/wiki/File:Mumbai_Skyline_Marine_Drive_Night.jpg), CC BY-SA 4.0, Av9.
+- Hyderabad by night (`hyderabad-night.jpg`): [Charminar Hyderabad night view.jpg](https://commons.wikimedia.org/wiki/File:Charminar_Hyderabad_night_view.jpg), CC BY-SA 4.0, Rashid Jorvee.
+- Pune by night (`pune-night.jpg`): [Sinhagad Road Pune at Night.jpg](https://commons.wikimedia.org/wiki/File:Sinhagad_Road_Pune_at_Night.jpg), public domain, Amityadav8.
+
+The Bengaluru skyline above is the night view; the Mumbai, Hyderabad and Pune images above are the day views. `default.jpg` is a local fallback copy of the Bengaluru image.
 
 ---
 
