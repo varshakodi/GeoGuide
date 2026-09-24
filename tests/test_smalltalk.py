@@ -54,9 +54,13 @@ def test_follow_up_uses_the_qa_prompt(monkeypatch):
     assert seen["system"] is None and "DETAIL PRESERVATION" in seen["user"]
 
 
-def test_faq_answer_keeps_the_guidelines_not_just_the_opening_line():
+def test_faq_answers_are_short_skip_the_lead_in_and_keep_the_rest():
     from backend.ai_routes import ask_faqs
     faqs = ask_faqs(BLR, limit=6)["faqs"]
-    etiquette = next(f for f in faqs if "etiquette" in f["question"])
-    text = " ".join(c["text"] for c in etiquette["answer"]["claims"])
-    assert "Remove footwear at religious sites" in text and len(etiquette["answer"]["claims"]) > 1
+    assert len(faqs) == 6 and all(len(f["answer"]["claims"]) <= 2 for f in faqs)
+    etiquette = next(f["answer"] for f in faqs if "etiquette" in f["question"])
+    shown = " ".join(c["text"] for c in etiquette["claims"])
+    assert shown.startswith("Remove footwear at religious sites") and "awkwardness" not in shown
+    assert any("Tipping" in c["text"] for c in etiquette["more_claims"])
+    assert all(c["source_labels"] == ["KV Place Guide / Bengaluru / etiquette"]
+               for c in etiquette["claims"] + etiquette["more_claims"])

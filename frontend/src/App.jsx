@@ -205,11 +205,29 @@ function LegacyAskScreen2({ cityName, question, setQuestion, ask, chat, lang, ju
           if (answer?.type === 'refusal' || answer?.type === 'error') return <article key={i} className="rounded-3xl border border-white/15 bg-white/[.04] p-6"><div className="flex gap-4"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-amber-300/40 text-amber-200">⌾</div><div><h2 className="text-xl font-black">I can&apos;t answer that from my sources</h2><p className="mt-2 text-sm leading-6 text-white/70">{answer.message || 'This request is outside the grounded data available to GeoGuide.'}</p><p className="mt-4 text-[10px] font-black uppercase tracking-[.2em] text-white/40">Try one of these</p><div className="mt-2 flex flex-wrap gap-2">{suggestions.map(suggestion => <button key={suggestion} type="button" onClick={() => ask(suggestion)} className="rounded-full border border-white/15 px-3 py-2 text-xs font-black text-white/75 hover:border-lime-300">{suggestion}</button>)}</div></div></div></article>; const claims = answer?.claims || []; return <article key={i} className="max-w-3xl rounded-3xl border border-white/10 bg-white/[.04] p-5 text-sm leading-7 text-white/80"><p>{claims.map((claim, index) => <React.Fragment key={index}>{claim.text}<sup className="ml-1 inline-flex h-5 min-w-5 cursor-pointer items-center justify-center rounded-full bg-emerald-300/20 px-1 text-[10px] font-black text-emerald-200" onClick={() => setDrawerClaim(claim)}>[{index + 1}]</sup>{' '}</React.Fragment>)}</p><SourceReceipt sources={[...new Set(claims.flatMap(claim => claim.source_labels || []))]}/>{answer?.flagged && <span className="mt-3 mr-2 inline-block rounded-full bg-amber-300 px-3 py-1 text-[10px] font-black text-black">Lower confidence · verify locally</span>}{answer?.extractive && <span className="mt-3 inline-block rounded-full border border-amber-300/30 px-3 py-1 text-[10px] font-black text-amber-100">Quoted verbatim from the source · AI model offline</span>}</article> })}</div><ClaimDrawer claim={drawerClaim} onClose={() => setDrawerClaim(null)}/></div>
 }
 
-function AskScreen(props) {
-  const promptList = (props.suggestions || []).map(item => typeof item === 'string' ? { question: item } : item)
-  return <div className="space-y-5"><LegacyAskScreen2 {...props} suggestions={promptList.map(item => item.question)}/>{promptList.length > 0 && <section className="mx-auto max-w-3xl rounded-3xl border border-white/10 bg-white/[.04] p-5"><p className="text-[10px] font-black uppercase tracking-[.2em] text-lime-300">Grounded FAQs for this city</p><p className="mt-2 text-sm font-bold text-white/60">Questions and answers retrieved from the backend RAG corpus.</p><div className="mt-4 space-y-4">{promptList.map(faq => <article key={faq.question} className="rounded-2xl border border-white/10 bg-black/20 p-4 sm:p-5"><button type="button" onClick={() => props.ask(faq.question)} className="text-left text-base font-semibold text-white hover:text-lime-200">{faq.question}</button>{faq.answer?.type === 'answer' ? <p className="mt-3 text-sm leading-relaxed text-white/90 sm:text-base">{(faq.answer.claims || []).map(claim => claim.text).join(' ')}</p> : <p className="mt-3 text-sm leading-relaxed text-amber-100/90 sm:text-base">{faq.answer?.message || 'This question was refused because the available sources did not support it.'}</p>}{faq.answer?.claims?.length > 0 && <p className="mt-3 font-mono text-xs text-emerald-200/80">{[...new Set(faq.answer.claims.flatMap(claim => claim.source_labels || []))].join(' · ')}</p>}</article>)}</div></section>}</div>
+// One quick answer: two quoted sentences, the rest behind "Show more", source underneath.
+function FaqCard({ faq, onAsk }) {
+  const [open, setOpen] = useState(false)
+  const answer = faq.answer
+  const claims = answer?.claims || []
+  const more = answer?.more_claims || []
+  const sources = [...new Set([...claims, ...more].flatMap(claim => claim.source_labels || []))]
+  return <article className="flex flex-col rounded-2xl border border-white/10 bg-black/20 p-4 sm:p-5">
+    <button type="button" onClick={() => onAsk(faq.question)} className="text-left text-base font-semibold text-white hover:text-lime-200">{faq.question}</button>
+    {answer?.type === 'answer'
+      ? <p className="mt-3 text-sm leading-relaxed text-white/90 sm:text-base">{(open ? [...claims, ...more] : claims).map(claim => claim.text).join(' ')}</p>
+      : <p className="mt-3 text-sm leading-relaxed text-amber-100/90 sm:text-base">{answer?.message || 'This question was refused because the available sources did not support it.'}</p>}
+    <div className="mt-auto flex flex-wrap items-center justify-between gap-x-4 gap-y-2 pt-3">
+      {sources.length > 0 && <p className="font-mono text-xs text-emerald-200/80">{sources.join(' · ')}</p>}
+      {more.length > 0 && <button type="button" onClick={() => setOpen(value => !value)} aria-expanded={open} className="text-xs font-semibold text-lime-300 hover:text-lime-200">{open ? 'Show less' : `Show more (${more.length})`}</button>}
+    </div>
+  </article>
 }
 
+function AskScreen(props) {
+  const promptList = (props.suggestions || []).map(item => typeof item === 'string' ? { question: item } : item)
+  return <div className="space-y-5"><LegacyAskScreen2 {...props} suggestions={promptList.slice(0, 4).map(item => item.question)}/>{promptList.length > 0 && <section className="mx-auto max-w-5xl rounded-3xl border border-white/10 bg-white/[.04] p-5"><p className="text-[10px] font-black uppercase tracking-[.2em] text-lime-300">Quick answers for {props.cityName}</p><p className="mt-2 text-sm font-bold text-white/60">Quoted from the city guide, with the source under each answer. Tap a question to ask a follow-up.</p><div className="mt-4 grid gap-4 md:grid-cols-2">{promptList.map(faq => <FaqCard key={faq.question} faq={faq} onAsk={props.ask}/>)}</div></section>}</div>
+}
 function Loading() { return <div className="space-y-3 rounded-3xl border border-white/10 bg-white/[.04] p-6"><div className="h-3 w-1/3 animate-pulse rounded bg-white/15"/><div className="h-3 w-full animate-pulse rounded bg-white/10"/><div className="h-3 w-2/3 animate-pulse rounded bg-white/10"/></div> }
 
 function ProofDrawer({ health, grounding, onGrounding, onClose }) {

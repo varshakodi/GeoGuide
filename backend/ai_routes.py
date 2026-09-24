@@ -11,7 +11,7 @@ from ai import config
 from ai.briefing import build as build_briefing
 from ai.pipeline import answer_question
 from ai import session as sess
-from ai.corpus import load_documents
+from ai.corpus import city_sections, load_documents
 from . import data_queries as dq
 from . import date_facts
 from .ranker import opens_earliest, rank, why_not
@@ -180,29 +180,47 @@ def _suggestions(city_id, limit, documents):
     return {"city_id": city_id, "questions": [item["question"] for item in questions], "sources": questions}
 
 
-FAQ_MAX_SENTENCES = 6
+# FAQ order and wording: the topics a traveller asks first, phrased the way they'd ask.
+FAQ_QUESTIONS = {
+    "etiquette": "What etiquette should I know in {city}?",
+    "food": "What should I know about eating in {city}?",
+    "transport": "What's the best way to get around {city}?",
+    "safety": "Is {city} safe for travellers?",
+    "seasonal": "When is the best time to visit {city}?",
+    "practical": "Any practical tips for {city}?",
+    "culture": "What's the daily rhythm like in {city}?",
+    "history": "What's the story behind {city}?",
+}
+FAQ_SHORT = 2
+# Opening sentences in the guide that frame a topic without saying anything concrete.
+LEAD_IN = re.compile(r"worth understanding|a few things|straightforward if|generally comfortable"
+                     r"|usual caveats|matters more .* than most travellers expect", re.I)
+SENTENCE = re.compile(r"(?<=[.!?])\s+")
+
+
+def faq_answer(body, source_label, lang):
+    """A short answer quoted from one guide row: the lead-in is skipped, the first two
+    concrete sentences are shown, and the rest is returned for "Show more". Every
+    sentence is verbatim from the row (only the first letter may be capitalised)."""
+    sentences = [x.strip() for x in SENTENCE.split(body.strip()) if x.strip()]
+    if len(sentences) > FAQ_SHORT and LEAD_IN.search(sentences[0]):
+        sentences = sentences[1:]
+    claim = lambda text: {"text": text[:1].upper() + text[1:], "source_labels": [source_label],
+                          "confidence": "high"}
+    return {"type": "answer", "language": lang, "grounded": True,
+            "claims": [claim(x) for x in sentences[:FAQ_SHORT]],
+            "more_claims": [claim(x) for x in sentences[FAQ_SHORT:]]}
 
 
 @router.get("/ask/faqs")
-def ask_faqs(city_id: str, lang: str = "en-IN", limit: int = Query(4, ge=1, le=6)):
-    """Return FAQ pairs made from exact retrieved RAG passages, without generation."""
-    documents = load_documents()
-    faqs = []
-    for item in _suggestions(city_id, limit, documents)["sources"]:
-        passages = [doc for doc in documents if doc["meta"].get("source_label") == item["source_label"]]
-        # The index stores overlapping 2-sentence windows; rebuild the row's full text from them
-        # so the answer keeps its guidelines instead of stopping at the opening sentence.
-        sentences = list(dict.fromkeys(s for doc in passages
-                                       for s in re.split(r"(?<=[.!?])\s+", doc["text"].strip()) if s))
-        confidence = passages[0]["meta"].get("confidence", "high") if passages else "high"
-        claims = [{"text": sentence, "source_labels": [item["source_label"]], "confidence": confidence}
-                  for sentence in sentences[:FAQ_MAX_SENTENCES]]
-        answer = {"type": "answer", "claims": claims, "language": lang, "grounded": bool(claims)}
-        if not claims:
-            answer = {"type": "refusal", "reason": "no_retrieval",
-                      "message": "No indexed passage was found for this question."}
-        faqs.append({"question": item["question"], "answer": answer})
-    return {"city_id": city_id, "language": lang, "faqs": faqs}
+def ask_faqs(city_id: str, lang: str = "en-IN", limit: int = Query(6, ge=1, le=8)):
+    """Short FAQ answers quoted from this city's guide rows in place_kb, without generation."""
+    name = city_name(city_id) or "this city"
+    rows = city_sections(city_id)
+    faqs = [{"question": question.format(city=name), "section": section,
+             "answer": faq_answer(rows[section]["body"], rows[section]["source_label"], lang)}
+            for section, question in FAQ_QUESTIONS.items() if section in rows]
+    return {"city_id": city_id, "language": lang, "faqs": faqs[:limit]}
 
 
 @router.get("/nearby")
