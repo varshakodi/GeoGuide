@@ -6,6 +6,7 @@ translated sentence keeps exactly the source labels its English original earned.
 Any translation failure keeps the English answer rather than failing the request.
 """
 import json
+import ssl
 import threading
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
@@ -15,6 +16,15 @@ from pathlib import Path
 from . import config
 
 URL = "https://api.sarvam.ai/translate"
+
+# python.org builds of Python on macOS ship without system CA certificates, so HTTPS via
+# urllib fails with CERTIFICATE_VERIFY_FAILED. Use certifi's bundle when it is installed
+# (it comes with httpx); otherwise fall back to the platform default.
+try:
+    import certifi
+    _SSL = ssl.create_default_context(cafile=certifi.where())
+except ImportError:
+    _SSL = ssl.create_default_context()
 
 
 def enabled(lang):
@@ -37,7 +47,7 @@ def _translate(text, lang):
                        "model": config.SARVAM_MODEL}).encode()
     req = urllib.request.Request(URL, data=body, headers={
         "Content-Type": "application/json", "api-subscription-key": config.SARVAM_API_KEY})
-    with urllib.request.urlopen(req, timeout=30) as resp:
+    with urllib.request.urlopen(req, timeout=30, context=_SSL) as resp:
         return json.loads(resp.read())["translated_text"]
 
 
