@@ -9,7 +9,7 @@ Push all your 24-hour hackathon work to **this repository**. Every team member h
 
 ---
 
-## Required repository structure
+## Required repository struct
 
 Your repo (`kv-hack2026-vvinners`) must follow this layout. We expect your codebase organised this way —
 **MVP completeness against your Problem Statement**, **coverage**, and **data-model conformance** all
