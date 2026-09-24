@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from ai import config
 from ai.briefing import build as build_briefing
 from ai.pipeline import answer_question
+from ai import session as sess
 from ai.corpus import load_documents
 from . import data_queries as dq
 from . import date_facts
@@ -130,6 +131,17 @@ class Ask(BaseModel):
 @router.post("/ask")
 def ask(body: Ask):
     return answer_question(body.question, body.city_id, body.lang, session_id=body.session_id)
+
+
+class Reset(BaseModel):
+    session_id: str
+
+
+@router.post("/ask/reset")
+def ask_reset(body: Reset):
+    """Forget a conversation's follow-up context: a new chat, or the city changed."""
+    sess.reset(body.session_id)
+    return {"session_id": body.session_id, "cleared": True}
 
 
 @router.get("/ask/suggestions")
