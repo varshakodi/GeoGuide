@@ -17,4 +17,5 @@ export const GEO_ENDPOINTS = Object.freeze({
 
 // The API runs on port 8000 of whichever host served the page: localhost when run
 // locally, the LAN address when the preview is opened from another device.
-export const API_BASE = import.meta.env.VITE_API || `http://${window.location.hostname}:8000`
+// A deployed build sets VITE_API to the API's public URL; a trailing slash is tolerated.
+export const API_BASE = (import.meta.env.VITE_API || `http://${window.location.hostname}:8000`).replace(/\/+$/, '')

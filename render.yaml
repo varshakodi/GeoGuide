@@ -1,0 +1,31 @@
+# Render Blueprint: the API (Docker) and the web app (static site).
+# Values marked sync: false are entered in the Render dashboard, never committed.
+services:
+  - type: web
+    name: geoguide-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: standard            # 2 GB RAM: the API uses ~860 MB once the search model loads, so 512 MB plans crash
+    healthCheckPath: /health
+    envVars:
+      - key: LLM_PROVIDER
+        value: gemini
+      - key: GEMINI_MODEL
+        value: gemini-3.6-flash,gemini-3-flash-preview,gemini-flash-lite-latest
+      - key: GROUNDING_ENABLED
+        value: "true"
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: SARVAM_API_KEY
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false           # the web app's URL, e.g. https://geoguide-web.onrender.com
+  - type: web
+    name: geoguide-web
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API
+        sync: false           # the API's URL, e.g. https://geoguide-api.onrender.com
