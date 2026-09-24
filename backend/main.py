@@ -1,4 +1,6 @@
 """FastAPI app. Vishnu owns this file; the AI router is mounted here."""
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -7,9 +9,11 @@ from . import data_queries as dq
 from .ai_routes import router as ai_router
 
 app = FastAPI(title="GeoGuide API")
-# Any host on the Vite dev ports, so the app works on localhost and when opened
-# over the LAN, without hardcoding one machine's IP.
-app.add_middleware(CORSMiddleware, allow_origin_regex=r"https?://[^/]+:517[3-5]",
+# A deployed frontend is listed in ALLOWED_ORIGINS (comma-separated, e.g. the Render URL).
+# Any host on the Vite dev ports stays allowed, so the app works on localhost and when
+# opened over the LAN, without hardcoding one machine's IP.
+ALLOWED_ORIGINS = [o.strip().rstrip("/") for o in os.getenv("ALLOWED_ORIGINS", "").split(",") if o.strip()]
+app.add_middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS, allow_origin_regex=r"https?://[^/]+:517[3-5]",
                    allow_methods=["*"], allow_headers=["*"])
 app.include_router(ai_router)
 

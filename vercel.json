@@ -1,0 +1,18 @@
+{
+  "services": {
+    "geoguide-web": {
+      "root": "frontend",
+      "framework": "vite",
+      "buildCommand": "npm ci && npm run build"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": {
+        "type": "service",
+        "service": "geoguide-web"
+      }
+    }
+  ]
+}

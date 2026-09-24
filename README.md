@@ -50,6 +50,8 @@ uvicorn backend.main:app --port 8000
 cd frontend && npm install && npm run dev            # open http://localhost:5173
 ```
 
+To deploy it (Render: API from the `Dockerfile`, web app as a static site), follow [docs/DEPLOY.md](docs/DEPLOY.md).
+
 ## 7. Demo path
 
 Arrive (Bengaluru) → **Open briefing** → note *"Nothing is scheduled in Bengaluru on 2026-09-24"* with its source → click the **Monsoon Music Nights** chip on the date control (17 Oct): events, season and tips recompute with new row ids → **Right now** → **Ask** "Anything I should know before Bengaluru Bazaar?" → **Ask** "How much is a cab to the airport right now?" (refused) → **Grounding off** (every section refuses). Detailed script: [docs/DEMO.md](docs/DEMO.md).
