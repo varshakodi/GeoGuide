@@ -3,6 +3,7 @@
 Order for a question:
   layer 3 intent  ->  layer 1 relevance gate  ->  LLM  ->  layer 2 sentinel  ->  citation check
 """
+import re
 from pathlib import Path
 from . import config
 from .citations import parse
@@ -41,8 +42,16 @@ def _compose(lang, task, passages, max_sentences):
             "flagged": any(c["confidence"] in config.FLAG_CONFIDENCE for c in claims)}
 
 
+GREETING = re.compile(r"^\s*(hi+|hello|hey|namaste|namaskara|thanks|thank you|good (morning|afternoon|evening))\W*$", re.I)
+
+
 def answer_question(question, city_id, lang="en-IN", max_sentences=None, session_id=None):
     """Follow-up Q&A. Every turn re-retrieves; state only resolves references."""
+    if GREETING.match(question):
+        # Not a question, so neither an answer nor a refusal: point at what can be asked.
+        return {"type": "greeting", "language": lang,
+                "message": "Hello! I answer from GeoGuide's city records. Ask about places to "
+                           "visit, food, safety, the weather or what's on."}
     reason = check_intent(question)                                   # layer 3
     if reason:
         return refusal(3, reason, lang)
