@@ -23,3 +23,17 @@
 @media (prefers-reduced-motion: reduce) {
   .map-stage, .map-user-pulse { animation: none; }
 }
+
+/* Keep the primary navigation visually centred between brand and utilities. */
+@media (min-width: 768px) {
+  header.sticky > div:first-child {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+  }
+  header.sticky > div:first-child > nav[aria-label="Primary navigation"] {
+    justify-self: center;
+  }
+  header.sticky > div:first-child > div:last-child {
+    justify-self: end;
+  }
+}

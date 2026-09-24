@@ -22,6 +22,7 @@ export const nearby = (city_id, lat, lng, for_date) => get(GEO_ENDPOINTS.backend
 export const now = (city_id, lat, lng, at, for_date, budget) =>
   get(GEO_ENDPOINTS.backend.now, { city_id, lat, lng, at, for_date, budget })
 export const setGrounding = (enabled) => get(GEO_ENDPOINTS.backend.grounding, { enabled })
+export const askSuggestions = (city_id, limit = 4) => get(GEO_ENDPOINTS.backend.askSuggestions, { city_id, limit })
 
 export async function ask(question, city_id, lang, session_id) {
   const r = await fetch(BASE + GEO_ENDPOINTS.backend.ask, {
