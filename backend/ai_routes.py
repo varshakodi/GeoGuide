@@ -12,6 +12,7 @@ from ai.briefing import build as build_briefing
 from ai.pipeline import answer_question
 from ai.corpus import load_documents
 from . import data_queries as dq
+from . import date_facts
 from .ranker import opens_earliest, rank, why_not
 
 router = APIRouter()
@@ -74,6 +75,9 @@ def context(lat: float, lng: float, for_date: str = None, at: str = None):
             "date_range": rng, "weather_today": w[0] if w else None,
             "languages": dq.languages_for(cid),
             "grounding_enabled": config.GROUNDING_ENABLED,
+            # Deterministic and instant, so a date change shows its events/season/tips
+            # before the generated briefing text arrives.
+            "date_facts": date_facts.build(city["name"], d, w, cur, up, adv, season, peak),
             "now": {
                 "events": [{"name": e["name"], "start_date": e["start_date"], "end_date": e["end_date"],
                             "source_label": f"events_festivals / {city['name']}"} for e in cur],
@@ -112,6 +116,7 @@ def briefing(city_id: str, lang: str = "en-IN", for_date: str = None, fresh: boo
             "next_event": ({"name": up[0]["name"], "start_date": up[0]["start_date"]} if up else None),
             "advisory_state": adv[0]["level"] if adv else "none",
             "grounding_enabled": config.GROUNDING_ENABLED,
+            "date_facts": date_facts.build(name, d, ctx["weather"], cur, up, adv, season, peak),
             "sections": sections}
 
 

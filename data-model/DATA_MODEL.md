@@ -30,7 +30,8 @@ Nothing above was renamed, dropped or re-keyed (Rule R1). The database is opened
 | City derived for POI-level `place_kb` chunks | 720 of 1,200 chunks carry `poi_id` and no `city_id`; the city comes from `activities_poi` so a city filter doesn't drop them |
 | Briefing cache (`.cache/briefings`) | A briefing is one LLM call; caching makes the demo instant and rehearsals free. Keyed by city, language, date, model and the grounding flag, and never caches a refusal |
 | In-process session state | Resolves "there" to the previously cited POI. It only rewrites the question; it is never a source |
-| Retrieval log | An application-side table tracking API request scores, refusals, and chunk_ids for RAGAS evaluation |
+| Retrieval log (`.cache/retrieval_log.jsonl`) | One JSON line per question: top score, whether the gate refused, outcome, refusal reason and the cited source labels. Written by `ai/pipeline.log_retrieval`; never read back as a source |
+| Row-cited date facts (`backend/date_facts.py`) | Events, season, weather and weather tips for the chosen date, each labelled with its row id (`events_festivals / evt_…`, `weather_daily / wth_…`). Derived at request time; nothing is stored |
 
 ## Boundary rules enforced in code
 

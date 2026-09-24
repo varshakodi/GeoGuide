@@ -12,6 +12,7 @@ from .citations import parse
 from .corpus import city_sections
 from .llm import LLMUnavailable, generate
 from .pipeline import briefing_section, _system, _user
+from .refusal import refusal
 
 BRIEFING_TASK = (Path(__file__).parent / "prompts" / "briefing.txt").read_text(encoding="utf-8")
 HEADING = re.compile(r"^##\s*(\w+)\s*$", re.M)
@@ -56,6 +57,33 @@ def all_passages(city_id, city_name, today, ctx):
     return ps, section_map
 
 
+def extractive(section_map, lang, detail=""):
+    """Fallback when no LLM is reachable: quote the passages themselves.
+
+    Each sentence shown is copied verbatim from a passage and carries that passage's
+    source label, so it is grounded by construction. Marked `extractive` so the UI can
+    say so and the cache never stores it in place of a generated briefing.
+    """
+    out = {}
+    for name in SECTIONS:
+        claims = []
+        for p in section_map.get(name, []):
+            sents = [s.strip() for s in SPLIT_SENT.split(p.text.strip()) if s.strip()]
+            claims += [{"text": s, "source_labels": [p.source_label], "confidence": p.confidence}
+                       for s in sents[:2]]
+        if not claims:
+            out[name] = {"type": "refusal", "layer": 1, "reason": "no_retrieval", "section": name,
+                         "message_key": "general", "language": lang}
+            continue
+        out[name] = {"type": "answer", "section": name, "claims": claims, "dropped": [],
+                     "language": "en-IN", "extractive": True, "detail": detail,
+                     "flagged": any(c["confidence"] in config.FLAG_CONFIDENCE for c in claims)}
+    return out
+
+
+SPLIT_SENT = re.compile(r"(?<=[.!?।])\s+")
+
+
 def build_single_call(city_id, city_name, today, ctx, lang="en-IN"):
     """One LLM call for the whole briefing instead of five.
 
@@ -68,9 +96,7 @@ def build_single_call(city_id, city_name, today, ctx, lang="en-IN"):
     try:
         raw = generate(_system(14), _user(lang, task, ps))
     except LLMUnavailable as e:
-        err = {"type": "error", "reason": "llm_unavailable", "detail": str(e),
-               "message": "No internet connection and no local model available."}
-        return {name: {**err, "section": name} for name in SECTIONS}
+        return extractive(section_map, lang, detail=str(e)[:200])
 
     parts, out = {}, {}
     chunks = HEADING.split(raw)
@@ -96,6 +122,9 @@ def build_single_call(city_id, city_name, today, ctx, lang="en-IN"):
 
 def build(city_id, city_name, today, ctx, lang="en-IN", use_cache=True, single_call=True):
     """ctx: {'weather': rows, 'events_current': rows, 'events_upcoming': rows, 'advisories': rows}"""
+    if not config.GROUNDING_ENABLED:
+        # The demo switch: with retrieval off there is nothing to ground in, so every section refuses.
+        return {name: {**refusal(1, "no_retrieval", lang), "section": name} for name in SECTIONS}
     if use_cache:
         hit = cache.get(city_id, lang, today)
         if hit:
