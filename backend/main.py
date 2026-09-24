@@ -26,5 +26,16 @@ def health():
         counts = {n: c.count() for n, c in collections().items()}
     except Exception:
         counts = {}
+    ollama_up = False
+    if config.OLLAMA_MODEL:
+        try:
+            import urllib.request
+            urllib.request.urlopen(config.OLLAMA_URL.replace("/api/chat", "/api/tags"), timeout=2)
+            ollama_up = True
+        except Exception:
+            ollama_up = False
     return {"status": "ok" if db_ok and counts else "degraded", "db": db_ok, "index": counts,
-            "llm_provider": config.LLM_PROVIDER, "grounding_enabled": config.GROUNDING_ENABLED}
+            "grounding_enabled": config.GROUNDING_ENABLED,
+            "llm": {"provider": config.LLM_PROVIDER, "gemini_model": config.GEMINI_MODEL or None,
+                    "gemini_keys": len(config.gemini_keys()),
+                    "ollama_model": config.OLLAMA_MODEL or None, "ollama_reachable": ollama_up}}

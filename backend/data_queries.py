@@ -32,6 +32,44 @@ def nearest_city(lat, lng):
     return {**dict(best), "distance_km": round(haversine(lat, lng, best["lat"], best["lng"]), 2)}
 
 
+def date_range(city_id):
+    """The dates the dataset actually covers, so the date-shift control can't leave it."""
+    con = connect()
+    r = con.execute("SELECT min(for_date) lo, max(for_date) hi FROM weather_daily WHERE city_id=?",
+                    (city_id,)).fetchone()
+    con.close()
+    return {"min": r["lo"], "max": r["hi"]}
+
+
+def clamp_date(city_id, for_date):
+    rng = date_range(city_id)
+    if not for_date:
+        for_date = date.today().isoformat()
+    return min(max(for_date, rng["min"]), rng["max"]), rng
+
+
+def season_for(city_id, for_date):
+    """Season for this date, from the weather row; falls back to the city's profile."""
+    con = connect()
+    r = con.execute("SELECT season FROM weather_daily WHERE city_id=? AND for_date=?",
+                    (city_id, for_date)).fetchone()
+    c = con.execute("SELECT season_profile, peak_months FROM cities WHERE city_id=?", (city_id,)).fetchone()
+    con.close()
+    season = (r["season"] if r and r["season"] else c["season_profile"])
+    months = [m.strip() for m in str(c["peak_months"]).split(",") if m.strip()]
+    peak = str(int(for_date[5:7])) in months
+    return season, peak
+
+
+def event_days(city_id):
+    """Dates that have an event, so the UI can point the judge at a festival week."""
+    con = connect()
+    rows = con.execute("SELECT name, start_date, end_date FROM events_festivals "
+                       "WHERE city_id=? AND status='active' ORDER BY start_date", (city_id,)).fetchall()
+    con.close()
+    return [dict(r) for r in rows]
+
+
 def weather(city_id, today):
     con = connect()
     rows = con.execute("SELECT * FROM weather_daily WHERE city_id=? AND for_date IN (?, date(?,'+1 day')) "
@@ -66,19 +104,32 @@ def advisories(city_id, now=None):
     return out
 
 
-def pois(city_id, lat=None, lng=None, limit=10):
+def _weekday(for_date):
+    """closed_days uses 0 = Monday, matching Python's weekday()."""
+    return date.fromisoformat(for_date).weekday()
+
+
+def is_closed_on(row, for_date):
+    days = [d.strip() for d in str(row["closed_days"] or "").split(",") if d.strip() != ""]
+    return str(_weekday(for_date)) in days
+
+
+def pois(city_id, lat=None, lng=None, limit=10, for_date=None, open_only=False):
     con = connect()
+    city = con.execute("SELECT lat, lng FROM cities WHERE city_id=?", (city_id,)).fetchone()
     rows = con.execute("SELECT * FROM activities_poi WHERE city_id=? AND status='active'", (city_id,)).fetchall()
     con.close()
+    olat, olng = (lat, lng) if lat is not None else (city["lat"], city["lng"])
     out = []
     for r in rows:
+        if for_date and open_only and is_closed_on(r, for_date):
+            continue
         d = dict(r)
-        d["entry_cost"] = str(Decimal(str(r["entry_cost"])))      # money as a string + currency
-        if lat is not None:
-            d["distance_km"] = round(haversine(lat, lng, r["lat"], r["lng"]), 2)
+        d["entry_cost"] = str(Decimal(str(r["entry_cost"])))      # money as a string + currency (rule R3)
+        d["distance_km"] = round(haversine(olat, olng, r["lat"], r["lng"]), 2)
+        d["closed_today"] = bool(for_date and is_closed_on(r, for_date))
         out.append(d)
-    if lat is not None:
-        out.sort(key=lambda d: d["distance_km"])
+    out.sort(key=lambda d: d["distance_km"])
     return out[:limit]
 
 

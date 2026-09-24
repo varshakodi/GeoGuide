@@ -9,6 +9,7 @@ from .citations import parse
 from .llm import generate, LLMUnavailable
 from .refusal import check_intent, refusal
 from .retrieval import retrieve
+from . import session as sess
 
 SYSTEM = (Path(__file__).parent / "prompts" / "system.txt").read_text(encoding="utf-8")
 
@@ -39,18 +40,22 @@ def _compose(lang, task, passages, max_sentences):
             "flagged": any(c["confidence"] in config.FLAG_CONFIDENCE for c in claims)}
 
 
-def answer_question(question, city_id, lang="en-IN", max_sentences=None):
-    """Follow-up Q&A. Every turn re-retrieves."""
+def answer_question(question, city_id, lang="en-IN", max_sentences=None, session_id=None):
+    """Follow-up Q&A. Every turn re-retrieves; state only resolves references."""
     reason = check_intent(question)                                   # layer 3
     if reason:
         return refusal(3, reason, lang)
-    r = retrieve(question, city_id)                                   # layer 1
+    asked, note = sess.rewrite(session_id, question)
+    r = retrieve(asked, city_id)                                      # layer 1
     if r.gated:
         return refusal(1, "below_threshold" if r.top_score else "no_retrieval", lang)
-    out = _compose(lang, f"Answer the traveller's question: {question}",
+    out = _compose(lang, f"Answer the traveller's question: {asked}",
                    r.passages, max_sentences or config.MAX_SENTENCES)
     if out.get("type") == "answer":
         out["top_score"] = round(r.top_score, 3)
+        if note:
+            out["resolved"] = note
+    sess.remember(session_id, question, out)
     return out
 
 

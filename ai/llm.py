@@ -6,22 +6,46 @@ class LLMUnavailable(RuntimeError):
     pass
 
 
-def _gemini(system, user):
-    from google import genai
+_CLIENTS = {}
+
+
+def _client(key):
+    """One client per key for the process lifetime. Building a client per call lets the
+    previous one be garbage-collected, which closes the shared httpx transport and makes
+    every later call fail with "Cannot send a request, as the client has been closed"."""
+    if key not in _CLIENTS:
+        from google import genai
+        _CLIENTS[key] = genai.Client(api_key=key)
+    return _CLIENTS[key]
+
+
+def _is_quota(e):
+    return "RESOURCE_EXHAUSTED" in str(e) or "429" in str(e)
+
+
+def _gemini(system, user, rounds=3, wait=20):
+    """Try every key; on a per-minute quota error, wait and try again.
+
+    A per-minute limit clears after a short wait, so a couple of rounds rescues it.
+    A daily limit never clears, so we give up quickly and let the caller fall back.
+    """
     from google.genai import types
     last = None
-    for key in config.gemini_keys():
-        try:
-            client = genai.Client(api_key=key)
-            r = client.models.generate_content(
-                model=config.GEMINI_MODEL, contents=user,
-                config=types.GenerateContentConfig(system_instruction=system, temperature=0.2))
-            return (r.text or "").strip()
-        except Exception as e:                       # quota, network, bad key
-            last = e
-            if "RESOURCE_EXHAUSTED" in str(e) or "429" in str(e):
-                continue
-            raise
+    for attempt in range(rounds):
+        for key in config.gemini_keys():
+            try:
+                r = _client(key).models.generate_content(
+                    model=config.GEMINI_MODEL, contents=user,
+                    config=types.GenerateContentConfig(system_instruction=system, temperature=0.2))
+                return (r.text or "").strip()
+            except Exception as e:
+                last = e
+                if _is_quota(e):
+                    continue
+                raise
+        if attempt < rounds - 1:
+            print(f"    [llm] quota hit on all keys, waiting {wait}s")
+            time.sleep(wait)
     raise LLMUnavailable(str(last))
 
 
@@ -48,8 +72,12 @@ def generate(system, user):
             continue
         if provider == "ollama" and not config.OLLAMA_MODEL:
             continue
+        primary = (provider == order[0])
         try:
-            return _gemini(system, user) if provider == "gemini" else _ollama(system, user)
+            # Only the primary provider is worth waiting out a per-minute quota for;
+            # as a fallback it gets one quick attempt so the request isn't held for a minute.
+            return (_gemini(system, user, rounds=3 if primary else 1) if provider == "gemini"
+                    else _ollama(system, user))
         except Exception as e:
             last = e
             time.sleep(1)

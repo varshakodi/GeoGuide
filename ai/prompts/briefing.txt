@@ -1,0 +1,13 @@
+Write a six-section arrival briefing for a traveller, for the date given in the Task, using ONLY the numbered passages.
+
+Output exactly these six headings, in this order, with nothing before or after:
+## history
+## attractions
+## events
+## weather
+## culture_etiquette
+## safety
+
+Under each heading write at most 2 sentences, each ending with its [n] citations.
+Never invent an event, a festival, a temperature or a price. If a passage says nothing is scheduled, say exactly that.
+If no passage supports a section, write exactly {sentinel} under that heading and nothing else.
