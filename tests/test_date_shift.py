@@ -30,7 +30,7 @@ def test_events_change_when_the_date_moves():
 def test_empty_date_says_so_and_names_no_festival():
     ctx, *_ = briefing_context(BLR, "Bengaluru", "2026-09-24")
     p = P.events(1, "Bengaluru", "2026-09-24", ctx["events_current"], ctx["events_upcoming"])
-    assert "No events are scheduled on 24 Sep 2026" in p.text
+    assert "No events are scheduled on 2026-09-24" in p.text
     assert p.source_label == "events_festivals / Bengaluru"
 
 

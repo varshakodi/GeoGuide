@@ -7,9 +7,7 @@ shown to the user so the resolution is visible rather than magic.
 import re
 from collections import defaultdict
 
-# Bare "it" is left out: "is it safe?" or "is it worth it?" is usually a fresh question,
-# and pinning it to the last place changed its meaning.
-DEICTIC = re.compile(r"\b(there|that place|this place|that one|that spot|the same|वहाँ|वहां|उसी|ಅಲ್ಲಿ)\b", re.I)
+DEICTIC = re.compile(r"\b(there|that place|it|this place|the same|वहाँ|वहां|उसी|ಅಲ್ಲಿ)\b", re.I)
 POI_FROM_LABEL = re.compile(r"KV (?:POI Facts|Place Guide) / [^/]+ / ([^/]+)")
 
 _sessions = defaultdict(list)          # session_id -> [{"question","poi"}]
