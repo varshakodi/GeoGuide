@@ -11,6 +11,7 @@ from ai import config
 from ai.briefing import build as build_briefing
 from ai.pipeline import answer_question
 from ai.corpus import load_documents
+from ai import translate
 from . import data_queries as dq
 from .ranker import opens_earliest, rank, why_not
 
@@ -178,8 +179,21 @@ def ask_faqs(city_id: str, lang: str = "en-IN", limit: int = Query(4, ge=1, le=6
         if not claims:
             answer = {"type": "refusal", "reason": "no_retrieval",
                       "message": "No indexed passage was found for this question."}
-        faqs.append({"question": item["question"], "answer": answer})
+        faqs.append({"question": item["question"], "answer": translate.translate_result(answer, lang)})
     return {"city_id": city_id, "language": lang, "faqs": faqs}
+
+
+class TranslateBody(BaseModel):
+    texts: list[str]
+    lang: str
+
+
+@router.post("/translate")
+def translate_ui(body: TranslateBody):
+    """Interface text and data labels for the page translator. Claims are never sent
+    here: answers are translated claim by claim in the pipeline."""
+    texts = [t for t in dict.fromkeys(body.texts) if t.strip() and len(t) <= 1000][:200]
+    return {"lang": body.lang, "translations": translate.translate_texts(texts, body.lang)}
 
 
 @router.get("/nearby")

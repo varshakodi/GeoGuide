@@ -34,3 +34,13 @@ export async function ask(question, city_id, lang, session_id) {
   if (!r.ok) throw new Error('ask ' + r.status)
   return r.json()
 }
+
+export async function translateTexts(texts, lang) {
+  const r = await fetch(BASE + GEO_ENDPOINTS.backend.translate, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ texts, lang })
+  })
+  if (!r.ok) throw new Error(`translate ${r.status}`)
+  return r.json()
+}

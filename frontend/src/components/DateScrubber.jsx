@@ -1,10 +1,13 @@
 import React, { useEffect, useMemo, useRef } from 'react'
 
 const iso = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-const month = date => date.toLocaleDateString('en-IN', { month: 'short' })
-const weekday = date => date.toLocaleDateString('en-IN', { weekday: 'short' })
+// Day and month names come from the browser's locale data for the chosen language,
+// not from machine translation, which misreads abbreviations like "SAT" and "WED".
+const locale = lang => (!lang || lang.startsWith('en') ? 'en-IN' : `${lang.split('-')[0]}-IN`)
+const month = (date, lang) => date.toLocaleDateString(locale(lang), { month: 'short' })
+const weekday = (date, lang) => date.toLocaleDateString(locale(lang), { weekday: 'short' })
 
-export default function DateScrubber({ date, range, events = [], onChange }) {
+export default function DateScrubber({ date, range, events = [], onChange, lang }) {
   const trackRef = useRef(null)
   const days = useMemo(() => {
     if (!range?.min || !range?.max) return []
@@ -55,7 +58,7 @@ export default function DateScrubber({ date, range, events = [], onChange }) {
           const value = iso(day)
           const selected = value === date
           const marked = eventDays.has(value)
-          return <button key={value} type="button" role="option" aria-selected={selected} onClick={() => onChange(value)} className={`group relative z-10 flex h-[88px] min-w-[58px] flex-col items-center justify-between rounded-2xl border px-2 py-3 transition focus:outline-none focus:ring-2 focus:ring-lime-300 ${selected ? 'border-lime-300 bg-lime-300 text-black shadow-lg shadow-lime-300/20' : 'border-white/10 bg-[#172019] text-white/65 hover:-translate-y-0.5 hover:border-white/35 hover:text-white'}`}><span className={`text-[10px] font-black uppercase ${selected ? 'text-black/60' : 'text-white/40'}`}>{weekday(day)}</span><span className="text-xl font-black leading-none">{day.getDate()}</span><span className={`text-[10px] font-black uppercase ${selected ? 'text-black/60' : 'text-white/40'}`}>{month(day)}</span>{marked && <span aria-label="Event day" className={`absolute -bottom-1 h-2.5 w-2.5 rounded-full border-2 ${selected ? 'border-black bg-[#ff6b57]' : 'border-[#111813] bg-[#ff6b57]'}`}/>}</button>
+          return <button key={value} translate="no" type="button" role="option" aria-selected={selected} onClick={() => onChange(value)} className={`group relative z-10 flex h-[88px] min-w-[58px] flex-col items-center justify-between rounded-2xl border px-2 py-3 transition focus:outline-none focus:ring-2 focus:ring-lime-300 ${selected ? 'border-lime-300 bg-lime-300 text-black shadow-lg shadow-lime-300/20' : 'border-white/10 bg-[#172019] text-white/65 hover:-translate-y-0.5 hover:border-white/35 hover:text-white'}`}><span className={`text-[10px] font-black uppercase ${selected ? 'text-black/60' : 'text-white/40'}`}>{weekday(day, lang)}</span><span className="text-xl font-black leading-none">{day.getDate()}</span><span className={`text-[10px] font-black uppercase ${selected ? 'text-black/60' : 'text-white/40'}`}>{month(day, lang)}</span>{marked && <span aria-label="Event day" className={`absolute -bottom-1 h-2.5 w-2.5 rounded-full border-2 ${selected ? 'border-black bg-[#ff6b57]' : 'border-[#111813] bg-[#ff6b57]'}`}/>}</button>
         })}
       </div>
     </div>

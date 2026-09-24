@@ -98,3 +98,14 @@ const S = {
   }
 }
 export const t = (lang, key) => (S[lang] || S['en-IN'])[key] || S['en-IN'][key] || key
+
+// English label -> translated label, for the page translator. Hand-written labels win
+// over machine translation, which misreads short UI words ("briefing" as "meeting").
+const ALIASES = { 'open briefing': 'brief_me', 'use my exact location': 'use_location', 'places to visit.': 'places', 'right now': 'now' }
+export const glossary = lang => {
+  const en = S['en-IN'], tr = S[lang]
+  if (!tr) return new Map()
+  const out = new Map(Object.keys(en).filter(k => tr[k]).map(k => [en[k].toLowerCase(), tr[k]]))
+  Object.entries(ALIASES).forEach(([alias, k]) => tr[k] && out.set(alias, tr[k]))
+  return out
+}

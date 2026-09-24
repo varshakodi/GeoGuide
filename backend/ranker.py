@@ -83,7 +83,9 @@ def rank(pois, now_hhmm, for_date, budget=None, currency="INR", window=WINDOW_MI
         reasons.append(f"open until {p['closes_at']} (activities_poi.closes_at)" if p.get("closes_at")
                        else "no closing time recorded (activities_poi.closes_at)")
         reasons.append(f"takes about {stay} min, fits the {window}-minute window "
-                       f"(activities_poi.typical_duration_minutes)")
+                       f"(activities_poi.typical_duration_minutes)" if travel + stay <= window
+                       else f"takes about {stay} min, about {window - travel} min of it fits the "
+                            f"{window}-minute window (activities_poi.typical_duration_minutes)")
         reasons.append("free entry (activities_poi.entry_cost)" if cost == 0
                        else f"entry {p['currency']} {p['entry_cost']} (activities_poi.entry_cost)")
         if budget is not None:

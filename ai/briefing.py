@@ -4,9 +4,11 @@ Backend supplies the structured rows (weather, events, advisories); this module
 assembles passages and calls the pipeline.
 """
 import re
+import threading
+from collections import defaultdict
 from pathlib import Path
 
-from . import cache, config
+from . import cache, config, translate
 from . import passages as P
 from .citations import parse
 from .corpus import city_sections
@@ -94,14 +96,31 @@ def build_single_call(city_id, city_name, today, ctx, lang="en-IN"):
     return out
 
 
+# One lock per briefing, so two identical requests arriving together (switching the
+# language and opening the tab both load it) make one model call, not two racing ones.
+_LOCKS = defaultdict(threading.Lock)
+
+
 def build(city_id, city_name, today, ctx, lang="en-IN", use_cache=True, single_call=True):
     """ctx: {'weather': rows, 'events_current': rows, 'events_upcoming': rows, 'advisories': rows}"""
+    with _LOCKS[(city_id, lang, today)]:
+        return _build(city_id, city_name, today, ctx, lang, use_cache, single_call)
+
+
+def _build(city_id, city_name, today, ctx, lang, use_cache, single_call):
     if use_cache:
         hit = cache.get(city_id, lang, today)
         if hit:
             for s in hit.values():
                 s["cached"] = True
             return hit
+    if translate.enabled(lang):
+        # Generate (or reuse) the English briefing, then translate its claims.
+        en = build(city_id, city_name, today, ctx, "en-IN", use_cache, single_call)
+        out = {name: translate.translate_result(sec, lang) for name, sec in en.items()}
+        if use_cache and not any(sec.get("translation_failed") for sec in out.values()):
+            cache.put(city_id, lang, today, out)
+        return out
     if single_call:
         out = build_single_call(city_id, city_name, today, ctx, lang)
         if use_cache:

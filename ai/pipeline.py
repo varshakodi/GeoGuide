@@ -10,6 +10,7 @@ from .llm import generate, LLMUnavailable
 from .refusal import check_intent, refusal
 from .retrieval import retrieve
 from . import session as sess
+from . import translate
 
 SYSTEM = (Path(__file__).parent / "prompts" / "system.txt").read_text(encoding="utf-8")
 
@@ -49,8 +50,9 @@ def answer_question(question, city_id, lang="en-IN", max_sentences=None, session
     r = retrieve(asked, city_id)                                      # layer 1
     if r.gated:
         return refusal(1, "below_threshold" if r.top_score else "no_retrieval", lang)
-    out = _compose(lang, f"Answer the traveller's question: {asked}",
+    out = _compose(translate.generation_lang(lang), f"Answer the traveller's question: {asked}",
                    r.passages, max_sentences or config.MAX_SENTENCES)
+    out = translate.translate_result(out, lang)
     if out.get("type") == "answer":
         out["top_score"] = round(r.top_score, 3)
         if note:
