@@ -10,8 +10,9 @@ from pydantic import BaseModel
 from ai import config
 from ai.briefing import build as build_briefing
 from ai.pipeline import answer_question
-from ai.corpus import load_documents
+from ai import session as sess
 from ai import translate
+from ai.corpus import city_sections, load_documents
 from . import data_queries as dq
 from . import date_facts
 from .ranker import opens_earliest, rank, why_not
@@ -133,6 +134,17 @@ def ask(body: Ask):
     return answer_question(body.question, body.city_id, body.lang, session_id=body.session_id)
 
 
+class Reset(BaseModel):
+    session_id: str
+
+
+@router.post("/ask/reset")
+def ask_reset(body: Reset):
+    """Forget a conversation's follow-up context: a new chat, or the city changed."""
+    sess.reset(body.session_id)
+    return {"session_id": body.session_id, "cleared": True}
+
+
 @router.get("/ask/suggestions")
 def ask_suggestions(city_id: str, limit: int = Query(4, ge=1, le=8)):
     """Return prompt ideas from this city's indexed RAG documents.
@@ -169,23 +181,54 @@ def _suggestions(city_id, limit, documents):
     return {"city_id": city_id, "questions": [item["question"] for item in questions], "sources": questions}
 
 
+# FAQ order and wording: the topics a traveller asks first, phrased the way they'd ask.
+FAQ_QUESTIONS = {
+    "etiquette": "What etiquette should I know in {city}?",
+    "food": "What should I know about eating in {city}?",
+    "transport": "What's the best way to get around {city}?",
+    "safety": "Is {city} safe for travellers?",
+    "seasonal": "When is the best time to visit {city}?",
+    "practical": "Any practical tips for {city}?",
+    "culture": "What's the daily rhythm like in {city}?",
+    "history": "What's the story behind {city}?",
+}
+FAQ_SHORT = 1
+# Opening sentences in the guide that frame a topic without saying anything concrete.
+LEAD_IN = re.compile(r"worth understanding|a few things|straightforward if|generally comfortable"
+                     r"|usual caveats|matters more .* than most travellers expect", re.I)
+SENTENCE = re.compile(r"(?<=[.!?])\s+")
+
+
+def faq_answer(body, source_label, lang):
+    """A short answer quoted from one guide row: the lead-in is skipped, the first
+    concrete sentence is shown, and the rest is returned for "Show more". Every
+    sentence is verbatim from the row (only the first letter may be capitalised)."""
+    sentences = [x.strip() for x in SENTENCE.split(body.strip()) if x.strip()]
+    if len(sentences) > FAQ_SHORT and LEAD_IN.search(sentences[0]):
+        sentences = sentences[1:]
+    claim = lambda text: {"text": text[:1].upper() + text[1:], "source_labels": [source_label],
+                          "confidence": "high"}
+    return {"type": "answer", "language": lang, "grounded": True,
+            "claims": [claim(x) for x in sentences[:FAQ_SHORT]],
+            "more_claims": [claim(x) for x in sentences[FAQ_SHORT:]]}
+
+
 @router.get("/ask/faqs")
-def ask_faqs(city_id: str, lang: str = "en-IN", limit: int = Query(4, ge=1, le=6)):
-    """Return FAQ pairs made from exact retrieved RAG passages, without generation."""
-    documents = load_documents()
-    faqs = []
-    for item in _suggestions(city_id, limit, documents)["sources"]:
-        passages = [doc for doc in documents if doc["meta"].get("source_label") == item["source_label"]]
-        sentence = re.split(r"(?<=[.!?])\s+", passages[0]["text"].strip())[0] if passages else ""
-        claims = [{"text": sentence, "source_labels": [item["source_label"]],
-                   "confidence": doc["meta"].get("confidence", "high")}
-                  for doc in passages[:1] if sentence]
-        answer = {"type": "answer", "claims": claims, "language": lang, "grounded": bool(claims)}
-        if not claims:
-            answer = {"type": "refusal", "reason": "no_retrieval",
-                      "message": "No indexed passage was found for this question."}
-        faqs.append({"question": item["question"], "answer": translate.translate_result(answer, lang)})
-    return {"city_id": city_id, "language": lang, "faqs": faqs}
+def ask_faqs(city_id: str, lang: str = "en-IN", limit: int = Query(6, ge=1, le=8)):
+    """Short FAQ answers quoted from this city's guide rows in place_kb, without generation.
+    Translated claim by claim (both the shown sentence and the "Show more" rest)."""
+    name = city_name(city_id) or "this city"
+    rows = city_sections(city_id)
+    faqs = [{"question": question.format(city=name), "section": section,
+             "answer": _translated(faq_answer(rows[section]["body"], rows[section]["source_label"], lang), lang)}
+            for section, question in FAQ_QUESTIONS.items() if section in rows]
+    return {"city_id": city_id, "language": lang, "faqs": faqs[:limit]}
+
+
+def _translated(answer, lang):
+    shown = len(answer["claims"])
+    out = translate.translate_result({**answer, "claims": answer["claims"] + answer["more_claims"]}, lang)
+    return {**out, "claims": out["claims"][:shown], "more_claims": out["claims"][shown:]}
 
 
 class TranslateBody(BaseModel):

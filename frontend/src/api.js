@@ -23,7 +23,17 @@ export const now = (city_id, lat, lng, at, for_date, budget, window) =>
   get(GEO_ENDPOINTS.backend.now, { city_id, lat, lng, at, for_date, budget, window })
 export const setGrounding = (enabled) => get(GEO_ENDPOINTS.backend.grounding, { enabled })
 export const askSuggestions = (city_id, limit = 4) => get(GEO_ENDPOINTS.backend.askSuggestions, { city_id, limit })
-export const askFaqs = (city_id, lang, limit = 4) => get(GEO_ENDPOINTS.backend.askFaqs, { city_id, lang, limit })
+export const askFaqs = (city_id, lang, limit = 6) => get(GEO_ENDPOINTS.backend.askFaqs, { city_id, lang, limit })
+
+export async function resetSession(session_id) {
+  const r = await fetch(BASE + GEO_ENDPOINTS.backend.askReset, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id })
+  })
+  if (!r.ok) throw new Error('reset ' + r.status)
+  return r.json()
+}
 
 export async function ask(question, city_id, lang, session_id) {
   const r = await fetch(BASE + GEO_ENDPOINTS.backend.ask, {

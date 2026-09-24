@@ -39,6 +39,8 @@ GROUNDING_ENABLED = os.getenv("GROUNDING_ENABLED", "true").lower() != "false"
 SENTINEL = "INSUFFICIENT_GROUNDED_INFORMATION"
 FLAG_CONFIDENCE = {"low"}          # decision D3
 MAX_SENTENCES = int(os.getenv("MAX_SENTENCES", "3"))
+# Follow-up answers keep the passage's specifics (timings, rules, steps) instead of a one-liner.
+QA_MAX_SENTENCES = int(os.getenv("QA_MAX_SENTENCES", "6"))
 
 
 def gemini_keys():
