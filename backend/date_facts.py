@@ -7,6 +7,8 @@ and a date with no events says so plainly instead of naming a festival.
 """
 from decimal import Decimal
 
+from ai.passages import human_date
+
 
 def _num(v):
     return Decimal(str(v)) if v is not None else None
@@ -56,7 +58,7 @@ def build(city_name, for_date, weather_rows, current, upcoming, advisories, seas
                     "end_date": e["end_date"], "description": e["description"],
                     "source_label": f"events_festivals / {e['event_id']}"} for e in current],
         # Stated plainly, never filled in: this is the "honest empty date" the brief asks for.
-        "no_events_message": (None if current else f"Nothing is scheduled in {city_name} on {for_date}."),
+        "no_events_message": (None if current else f"Nothing is scheduled in {city_name} on {human_date(for_date)}."),
         "next_event": ({"event_id": upcoming[0]["event_id"], "name": upcoming[0]["name"],
                         "start_date": upcoming[0]["start_date"], "end_date": upcoming[0]["end_date"],
                         "source_label": f"events_festivals / {upcoming[0]['event_id']}"} if upcoming else None),

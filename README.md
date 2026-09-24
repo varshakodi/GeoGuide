@@ -1087,7 +1087,9 @@ Day and night variants for the day/night toggle, also from Wikimedia Commons (re
 - Hyderabad by night (`hyderabad-night.jpg`): [Charminar Hyderabad night view.jpg](https://commons.wikimedia.org/wiki/File:Charminar_Hyderabad_night_view.jpg), CC BY-SA 4.0, Rashid Jorvee.
 - Pune by night (`pune-night.jpg`): [Sinhagad Road Pune at Night.jpg](https://commons.wikimedia.org/wiki/File:Sinhagad_Road_Pune_at_Night.jpg), public domain, Amityadav8.
 
-The Bengaluru skyline above is the night view; the Mumbai, Hyderabad and Pune images above are the day views. `default.jpg` is a local fallback copy of the Bengaluru image.
+- Mumbai by day (`mumbai-day.jpg`) and Pune by day (`pune-day.jpg`): supplied by the team; confirm the source licence before publishing.
+
+The Bengaluru skyline above is the night view and the Hyderabad image the day view; the earlier Mumbai and Pune Commons images are kept in the repo but no longer shown. `default.jpg` is a local fallback copy of the Bengaluru image.
 
 ---
 
