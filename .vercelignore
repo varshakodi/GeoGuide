@@ -1,0 +1,8 @@
+# Vercel only builds the web app: upload frontend/ and vercel.json, nothing else
+# (no .env, Python environment, index, backend or data).
+/*
+!/frontend
+!/vercel.json
+/frontend/node_modules
+/frontend/dist
+/frontend/.vercel

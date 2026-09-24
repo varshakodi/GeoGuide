@@ -75,6 +75,36 @@ latest commit** on `geoguide-web`.
 | Briefings show the amber "AI model is unreachable" banner | `GEMINI_API_KEY` is missing or invalid (check `/health`), or Gemini is overloaded. Answers stay grounded, quoted from the sources, until it recovers. |
 | Hindi or Kannada only partly translates | `SARVAM_API_KEY` is missing on `geoguide-api`. |
 
+## Alternative: web app on Vercel, API on a laptop (demo setup)
+
+The web app can also run on Vercel while the API runs on a laptop and is exposed through a
+Cloudflare quick tunnel. It needs no server plan, but the laptop must stay on and awake, and the
+tunnel address changes whenever the tunnel restarts.
+
+1. Start the API with the Vercel address allowed, then the tunnel:
+   ```bash
+   ALLOWED_ORIGINS=https://<project>.vercel.app .venv/bin/uvicorn backend.main:app --port 8000
+   ```
+   ```bash
+   cloudflared tunnel --url http://localhost:8000
+   ```
+   The tunnel prints an `https://….trycloudflare.com` address.
+2. From the repo root, link and deploy with the Vercel CLI. [`vercel.json`](../vercel.json) builds
+   `frontend/`, and [`.vercelignore`](../.vercelignore) uploads only that folder:
+   ```bash
+   npx vercel link
+   ```
+   ```bash
+   npx vercel env add VITE_API production
+   ```
+   ```bash
+   npx vercel --prod
+   ```
+   Enter the tunnel address as the value of `VITE_API`.
+3. When the tunnel address changes, either set `VITE_API` again and redeploy, or open
+   `https://<project>.vercel.app/?api=<new tunnel address>`. The app accepts only
+   `trycloudflare.com`, `railway.app`, `onrender.com` and localhost addresses in that link.
+
 ## Afterwards
 
 Suspend or delete both services, and create new Gemini and Sarvam keys, since the demo URL was
