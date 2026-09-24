@@ -11,6 +11,7 @@ from .llm import generate, LLMUnavailable
 from .refusal import check_intent, refusal
 from .retrieval import retrieve
 from . import session as sess
+from . import translate
 
 SYSTEM = (Path(__file__).parent / "prompts" / "system.txt").read_text(encoding="utf-8")
 SPLIT_SENT = re.compile(r"(?<=[.!?।])\s+")
@@ -65,6 +66,7 @@ def _compose(lang, task, passages, max_sentences, question=None):
             "flagged": any(c["confidence"] in config.FLAG_CONFIDENCE for c in claims)}
 
 
+GREETING = re.compile(r"^\s*(hi+|hello|hey|namaste|namaskara|thanks|thank you|good (morning|afternoon|evening))\W*$", re.I)
 LOG = Path(config.CHROMA_PATH).parent / ".cache" / "retrieval_log.jsonl"
 
 
@@ -85,6 +87,11 @@ def log_retrieval(question, city_id, r, out):
 
 def answer_question(question, city_id, lang="en-IN", max_sentences=None, session_id=None):
     """Follow-up Q&A. Every turn re-retrieves; state only resolves references."""
+    if GREETING.match(question):
+        # Not a question, so neither an answer nor a refusal: point at what can be asked.
+        return {"type": "greeting", "language": lang,
+                "message": "Hello! I answer from GeoGuide's city records. Ask about places to "
+                           "visit, food, safety, the weather or what's on."}
     reason = check_intent(question)                                   # layer 3
     if reason:
         out = refusal(3, reason, lang)
@@ -96,8 +103,9 @@ def answer_question(question, city_id, lang="en-IN", max_sentences=None, session
         out = refusal(1, "below_threshold" if r.top_score else "no_retrieval", lang)
         log_retrieval(question, city_id, r, out)
         return out
-    out = _compose(lang, f"Answer the traveller's question: {asked}",
+    out = _compose(translate.generation_lang(lang), f"Answer the traveller's question: {asked}",
                    r.passages, max_sentences or config.MAX_SENTENCES, question=asked)
+    out = translate.translate_result(out, lang)
     if out.get("type") == "answer":
         out["top_score"] = round(r.top_score, 3)
         if note:

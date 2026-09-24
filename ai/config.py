@@ -18,7 +18,15 @@ TOP_K = int(os.getenv("TOP_K", "4"))
 
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "")
+# Comma-separated; each model has its own free-tier daily quota, so later ones are
+# tried when an earlier one is out of quota or overloaded.
+GEMINI_MODELS = [m.strip() for m in GEMINI_MODEL.split(",") if m.strip()]
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-opus-5")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "")
+# Sarvam translates finished English claims into the city languages; unset = no translation.
+SARVAM_API_KEY = os.getenv("SARVAM_API_KEY", "")
+SARVAM_MODEL = os.getenv("SARVAM_MODEL", "sarvam-translate:v1")
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/chat")
 # Live requests fail fast to the extractive fallback; prewarm can raise these to wait out quotas.
 LLM_TIMEOUT_MS = int(os.getenv("LLM_TIMEOUT_MS", "30000"))

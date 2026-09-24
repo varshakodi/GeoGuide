@@ -1,7 +1,35 @@
 """Vector retrieval with the city filter and the relevance gate (refusal layer 1)."""
+import re
 from dataclasses import dataclass, field
+from functools import lru_cache
 from . import config
+from .corpus import connect
 from .index import collections, embed
+
+# Travellers ask "what to do here"; the passages all name the city, so a vague question
+# scores below the gate. Only questions with travel vocabulary get a second search with
+# the city named: off-topic questions ("tell me a joke") gain as much from the city name
+# as real ones do, so the vocabulary, not the score, is what tells them apart.
+HERE = re.compile(r"\b(here|this (city|place|town))\b", re.I)
+TRAVEL = re.compile(
+    r"\b((to|can i|should i|could i|things to|what to) do|(should|can|could) i go|where to go|go out|"
+    r"visit|visiting|see|seeing|sightseeing|get around|eat|eating|food|drink|stay|hotels?|shop|"
+    r"shopping|safe|safety|avoid|tips?|famous|kids|family|relax|crowded|weather|wear|rain|"
+    r"festivals?|events?|temples?|museums?|parks?|beach|markets?|explore|attractions?|places?|"
+    r"walk|travel|tourists?|culture|history|etiquette|local|special|must)\b", re.I)
+
+
+@lru_cache(maxsize=None)
+def _city_name(city_id):
+    con = connect()
+    row = con.execute("SELECT name FROM cities WHERE city_id=?", (city_id,)).fetchone()
+    con.close()
+    return row[0] if row else None
+
+
+def _in_city(question, name):
+    q = HERE.sub(name, question)
+    return q if name.lower() in q.lower() else f"{q.rstrip(' ?.!')} in {name}"
 
 
 @dataclass
@@ -47,7 +75,17 @@ def search(question, city_id, k=None):
 
 
 def retrieve(question, city_id, k=None):
-    hits = search(question, city_id, k)
+    r = _gate(search(question, city_id, k))
+    if r.gated and TRAVEL.search(question):
+        name = _city_name(city_id)
+        if name and name.lower() not in question.lower():
+            named = _gate(search(_in_city(question, name), city_id, k))
+            if not named.gated:
+                return named
+    return r
+
+
+def _gate(hits):
     top = hits[0]["score"] if hits else 0.0
     kept = [h for h in hits if h["score"] >= config.RELEVANCE_THRESHOLD]
     if not kept:

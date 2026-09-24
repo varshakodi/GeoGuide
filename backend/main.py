@@ -39,5 +39,6 @@ def health():
     return {"status": "ok" if db_ok and counts else "degraded", "db": db_ok, "index": counts,
             "grounding_enabled": config.GROUNDING_ENABLED,
             "llm": {"provider": config.LLM_PROVIDER, "gemini_model": config.GEMINI_MODEL or None,
+                    "anthropic_model": config.ANTHROPIC_MODEL if config.ANTHROPIC_API_KEY else None,
                     "gemini_keys": len(config.gemini_keys()),
                     "ollama_model": config.OLLAMA_MODEL or None, "ollama_reachable": ollama_up}}
