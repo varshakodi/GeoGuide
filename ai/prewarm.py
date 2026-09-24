@@ -25,6 +25,8 @@ def warm(cities, langs, dates=None):
               t0 = time.time()
               out = build(city_id, name, today, ctx, lang)
               bad = [k for k, v in out.items() if v.get("type") != "answer"]
+              if any(v.get("extractive") for v in out.values()):
+                  bad = ["no LLM reachable - check GEMINI_API_KEY/GEMINI_MODEL in .env; nothing cached"]
               cached = all(v.get("cached") for v in out.values())
               print(f"{name:12s} {today} {lang:6s} {time.time()-t0:5.1f}s "
                     f"{'(from cache)' if cached else '(generated)'}"
