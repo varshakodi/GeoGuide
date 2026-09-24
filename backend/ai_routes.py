@@ -123,6 +123,25 @@ def ask_suggestions(city_id: str, limit: int = Query(4, ge=1, le=8)):
     return {"city_id": city_id, "questions": [item["question"] for item in questions], "sources": questions}
 
 
+@router.get("/ask/faqs")
+def ask_faqs(city_id: str, lang: str = "en-IN", limit: int = Query(4, ge=1, le=6)):
+    """Return FAQ pairs made from exact retrieved RAG passages, without generation."""
+    prompt_data = ask_suggestions(city_id, limit)
+    documents = load_documents()
+    faqs = []
+    for item in prompt_data["sources"]:
+        passages = [doc for doc in documents if doc["meta"].get("source_label") == item["source_label"]]
+        claims = [{"text": doc["text"], "source_labels": [item["source_label"]],
+                   "confidence": doc["meta"].get("confidence", "high")}
+                  for doc in passages[:2]]
+        answer = {"type": "answer", "claims": claims, "language": lang, "grounded": bool(claims)}
+        if not claims:
+            answer = {"type": "refusal", "reason": "no_retrieval",
+                      "message": "No indexed passage was found for this question."}
+        faqs.append({"question": item["question"], "answer": answer})
+    return {"city_id": city_id, "language": lang, "faqs": faqs}
+
+
 @router.get("/nearby")
 def nearby(city_id: str, lat: float = None, lng: float = None, for_date: str = None):
     d, _ = dq.clamp_date(city_id, for_date or default_date())

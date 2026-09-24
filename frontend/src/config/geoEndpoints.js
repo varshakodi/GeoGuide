@@ -12,6 +12,7 @@ export const GEO_ENDPOINTS = Object.freeze({
     now: '/now',
     ask: '/ask',
     askSuggestions: '/ask/suggestions',
+    askFaqs: '/ask/faqs',
     grounding: '/grounding'
   })
 })
