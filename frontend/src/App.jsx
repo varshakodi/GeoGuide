@@ -4,6 +4,9 @@ import { t } from './i18n.js'
 import Icon from './components/Icon.jsx'
 import { Caution, SectionCard, Skeleton, Speak, SourceChip, TimeBadge } from './components/Bits.jsx'
 import DateScrubber from './components/DateScrubber.jsx'
+import Clock from './components/Clock.jsx'
+import PlaceMap from './components/PlaceMap.jsx'
+import HereNow from './components/HereNow.jsx'
 import { FIXTURE_BRIEFING } from './fixtures.js'
 
 const SECTIONS = ['history', 'attractions', 'events', 'weather', 'culture_etiquette', 'safety']
@@ -48,13 +51,15 @@ export default function App() {
   const [offline, setOffline] = useState(false)
   const [grounding, setGrounding] = useState(true)
   const [toast, setToast] = useState(null)
+  const [fix, setFix] = useState(null)      // real device fix, when permission is granted
+  const [sel, setSel] = useState(null)      // place selected on the map or in a list
   const chatEnd = useRef(null)
 
   const flash = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2600) }
 
   const loadContext = useCallback(async (p, d) => {
     try {
-      const c = await api.context(p.lat, p.lng, d)
+      const c = await api.context(p.lat, p.lng, d, new Date().toTimeString().slice(0, 5))
       setCtx(c); setDate(c.date); setOffline(false); setGrounding(c.grounding_enabled)
       api.dates(c.city.city_id).then(setDateInfo).catch(() => {})
       return c
@@ -66,8 +71,11 @@ export default function App() {
   const locate = () => {
     if (!navigator.geolocation) return flash('This browser has no geolocation')
     navigator.geolocation.getCurrentPosition(
-      p => { const n = { name: null, lat: p.coords.latitude, lng: p.coords.longitude }
-             setPos(n); loadContext(n, date); flash('Location captured') },
+      p => {
+        const n = { name: null, lat: p.coords.latitude, lng: p.coords.longitude }
+        setFix({ lat: p.coords.latitude, lng: p.coords.longitude, accuracy: Math.round(p.coords.accuracy) })
+        setPos(n); loadContext(n, date); flash('Location captured')
+      },
       () => flash('Permission denied — choose a city below')
     )
   }
@@ -103,7 +111,10 @@ export default function App() {
     if (!ctx) return
     if (id === 'briefing' && !brief) fetchBriefing()
     if (id === 'nearby') api.nearby(ctx.city.city_id, pos.lat, pos.lng, date).then(setPlaces).catch(() => setOffline(true))
-    if (id === 'now') refreshPicks()
+    if (id === 'now') {
+      refreshPicks()
+      if (!places) api.nearby(ctx.city.city_id, pos.lat, pos.lng, date).then(setPlaces).catch(() => {})
+    }
   }
 
   const send = async (text) => {
@@ -171,21 +182,28 @@ export default function App() {
 
         {tab === 'arrive' && (
           <>
-            <section className="panel reveal">
-              <span className="eyebrow">{t(lang, 'welcome')}</span>
-              <h1>{ctx?.city?.name || '…'}</h1>
-              <p className="muted">
-                {ctx ? `${date} · ${String(ctx.season).replace('_', ' ')}${ctx.peak_season ? ` · ${t(lang, 'peak')}` : ''}` : t(lang, 'loading')}
-              </p>
-              {ctx?.weather_today && (
-                <p className="body" style={{ marginTop: 6 }}>
-                  {String(ctx.weather_today.condition).replace('_', ' ')} · {ctx.weather_today.temp_min_c}–{ctx.weather_today.temp_max_c} °C
-                  {ctx.weather_today.feels_like_c ? ` · feels ${ctx.weather_today.feels_like_c} °C` : ''}
-                </p>
-              )}
-              <div className="row" style={{ marginTop: 14 }}>
-                <button className="btn" onClick={locate}><Icon name="pin" size={16} /> {t(lang, 'use_location')}</button>
+            {ctx ? (
+              <HereNow ctx={ctx} lang={lang}
+                       onOpenBriefing={() => { setTab('briefing'); fetchBriefing() }}
+                       onOpenNow={() => go('now')} />
+            ) : <Skeleton />}
+
+            <section className="panel solid reveal">
+              <div className="spread">
+                <h3><Icon name="pin" size={18} style={{ color: 'var(--moss)' }} /> {t(lang, 'use_location')}</h3>
+                <button className="btn cta" style={{ padding: '9px 18px' }} onClick={locate}>
+                  <Icon name="pin" size={16} /> {fix ? 'Re-detect' : t(lang, 'use_location')}
+                </button>
               </div>
+              <p className="muted" style={{ marginTop: 8 }}>{t(lang, 'permission_why')}</p>
+              {fix && (
+                <dl className="kv">
+                  <dt>{t(lang, 'coords')}</dt>
+                  <dd>{fix.lat.toFixed(5)}, {fix.lng.toFixed(5)} <span className="muted">±{fix.accuracy} m</span></dd>
+                  <dt>{t(lang, 'resolved')}</dt>
+                  <dd>{ctx?.city?.name} <span className="muted">· {ctx?.city?.distance_km} km {t(lang, 'from_centre')}</span></dd>
+                </dl>
+              )}
             </section>
 
             <section className="panel reveal">
@@ -259,7 +277,21 @@ export default function App() {
               {brief?.next_event && brief.time_state !== 'on_now' && (
                 <p className="muted" style={{ marginTop: 8 }}>Next: {brief.next_event.name}, {brief.next_event.start_date}</p>
               )}
-              {voice && briefingText && <div style={{ marginTop: 10 }}><Speak text={briefingText} lang={lang} /></div>}
+              <div className="strip">
+                <div className="stat"><div className="k">{t(lang, 'events')}</div>
+                  <div className="v">{brief?.events_today?.length || 0}</div></div>
+                <div className="stat"><div className="k">season</div>
+                  <div className="v">{String(brief?.season || ctx?.season || '—').replace('_', ' ')}</div></div>
+                <div className="stat"><div className="k">{t(lang, 'safety')}</div>
+                  <div className="v">{brief?.advisory_state && brief.advisory_state !== 'none'
+                    ? brief.advisory_state : t(lang, 'no_advisory')}</div></div>
+                <div className="stat"><div className="k">{t(lang, 'grounding_toggle')}</div>
+                  <div className="v">
+                    <button className={`btn ghost ${grounding ? 'on' : ''}`} style={{ padding: '2px 10px' }}
+                            onClick={toggleGrounding}>{grounding ? 'ON' : 'OFF'}</button>
+                  </div></div>
+              </div>
+              {voice && briefingText && <div style={{ marginTop: 12 }}><Speak text={briefingText} lang={lang} /></div>}
             </section>
 
             {busy && <><div className="banner warn">{t(lang, 'generating')}</div><Skeleton /><Skeleton /></>}
@@ -271,19 +303,26 @@ export default function App() {
 
         {tab === 'nearby' && (
           <>
+            <section className="panel reveal">
+              <PlaceMap lang={lang} pois={places?.pois || []} hotels={places?.hotels || []}
+                        centre={{ lat: pos.lat, lng: pos.lng, name: ctx?.city?.name }}
+                        at={at} selected={sel} onSelect={setSel} />
+            </section>
             <section className="panel solid reveal">
               <h2>{t(lang, 'places')}</h2>
               {(places?.pois || []).map(p => (
-                <div className="item" key={p.poi_id}>
+                <div className={`item ${sel === p.poi_id ? 'sel' : ''}`} key={p.poi_id}
+                     onClick={() => setSel(p.poi_id)}>
                   <div className="spread">
                     <b>{p.name}</b>
                     <span className="muted">{p.distance_km} km</span>
                   </div>
-                  <div className="muted">
-                    {String(p.poi_category).replace('_', ' ')} · {p.opens_at}–{p.closes_at || '—'} ·{' '}
-                    {p.entry_cost === '0.00' ? t(lang, 'free') : `${p.currency} ${p.entry_cost}`} ·{' '}
-                    {p.typical_duration_minutes} min
-                  </div>
+                  <dl className="kv">
+                    <dt>hours</dt><dd>{p.opens_at}–{p.closes_at || '—'}</dd>
+                    <dt>entry</dt><dd>{p.entry_cost === '0.00' ? t(lang, 'free') : `${p.currency} ${p.entry_cost}`}</dd>
+                    <dt>typical visit</dt><dd>{p.typical_duration_minutes} min</dd>
+                    <dt>type</dt><dd>{String(p.poi_category).replace('_', ' ')}</dd>
+                  </dl>
                   <span className={`badge ${p.closed_today ? 'warn' : 'soon'}`} style={{ marginTop: 6, display: 'inline-block' }}>
                     {p.closed_today ? t(lang, 'closed') : t(lang, 'open_now')}
                   </span>
@@ -308,18 +347,9 @@ export default function App() {
         {tab === 'now' && (
           <>
             <section className="panel reveal">
-              <div className="spread">
-                <span className="eyebrow">{t(lang, 'at_time')}</span>
-                <b>{at}</b>
-              </div>
-              <input type="range" min="0" max="1380" step="30"
-                     value={Number(at.slice(0, 2)) * 60 + Number(at.slice(3, 5))}
-                     onChange={e => {
-                       const v = Number(e.target.value)
-                       const s = `${String(Math.floor(v / 60)).padStart(2, '0')}:${String(v % 60).padStart(2, '0')}`
-                       setAt(s); refreshPicks(s, budget)
-                     }} />
-              <div className="spread" style={{ marginTop: 10 }}>
+              <Clock lang={lang} value={at} window={90}
+                     onChange={v => { setAt(v); refreshPicks(v, budget) }} />
+              <div className="spread" style={{ marginTop: 16 }}>
                 <span className="eyebrow">{t(lang, 'budget')}</span>
                 <b>INR {budget}</b>
               </div>
@@ -328,19 +358,47 @@ export default function App() {
               <p className="muted" style={{ marginTop: 8 }}>
                 Ranking is computed from the data — no model — so it re-ranks instantly and reproducibly.
               </p>
+              <PlaceMap lang={lang} pois={places?.pois || []} hotels={[]}
+                        centre={{ lat: pos.lat, lng: pos.lng, name: ctx?.city?.name }}
+                        at={at} selected={sel} onSelect={setSel} />
             </section>
             <section className="panel solid reveal">
               {(picks?.picks || []).map((p, i) => (
                 <div className="item" key={p.poi_id}>
                   <div className="spread">
-                    <span className="row"><span className="rank">{i + 1}</span><b>{p.name}</b></span>
+                    <span className="row" onClick={() => setSel(p.poi_id)} style={{ cursor: 'pointer' }}>
+                      <span className="rank">{i + 1}</span><b>{p.name}</b></span>
                     <span className="muted">{p.distance_km} km</span>
                   </div>
                   <div>{p.reasons.map(r => <span className="reason" key={r}>{r}</span>)}</div>
                   <div><SourceChip label={p.source_label} /></div>
                 </div>
               ))}
-              {picks && picks.picks.length === 0 && <p className="muted">{t(lang, 'nothing_fits')}</p>}
+              {picks && picks.picks.length === 0 && (
+                <div>
+                  <h3><Icon name="clock" size={18} style={{ color: 'var(--clay)' }} /> {t(lang, 'nothing_open')} — {picks.at}</h3>
+                  <p className="muted" style={{ marginTop: 6 }}>{t(lang, 'nothing_fits')}</p>
+                  <p className="eyebrow" style={{ marginTop: 14 }}>{t(lang, 'why_excluded')}</p>
+                  {(picks.excluded || []).map(e => (
+                    <div className="item" key={e.name}>
+                      <div className="spread"><b>{e.name}</b><span className="muted">{e.distance_km} km</span></div>
+                      <span className="reason">{e.reason}</span>
+                    </div>
+                  ))}
+                  <p className="eyebrow" style={{ marginTop: 14 }}>{t(lang, 'opens_earliest')}</p>
+                  {(picks.opens_earliest || []).map(e => (
+                    <div className="item" key={e.poi_id}>
+                      <div className="spread"><b>{e.name}</b><span className="muted">{e.distance_km} km</span></div>
+                      <span className="reason">opens {e.opens_at} · closes {e.closes_at || '—'}</span>
+                    </div>
+                  ))}
+                  <button className="btn cta" style={{ marginTop: 14 }}
+                          onClick={() => { setAt('15:00'); refreshPicks('15:00', budget) }}>
+                    {t(lang, 'jump_afternoon')}
+                  </button>
+                  <div><SourceChip label="activities_poi" /></div>
+                </div>
+              )}
               {!picks && <Skeleton />}
             </section>
           </>

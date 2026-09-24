@@ -20,7 +20,12 @@ const S = {
     at_time: 'Time', budget: 'Max entry cost', open_now: 'open', closed: 'closed today', free: 'free',
     nothing_fits: 'Nothing in the data is open and reachable in this window.',
     generating: 'Generating from the data — first visit to this date.',
-    peak: 'peak season', tab_arrive: 'Arrive', tab_brief: 'Briefing', tab_near: 'Nearby', tab_now: 'Now', tab_ask: 'Ask',
+    peak: 'peak season', nothing_open: 'Nothing is open at this time',
+    why_excluded: 'Why nothing fits', opens_earliest: 'Opens earliest tomorrow',
+    jump_afternoon: 'Jump to 15:00', permission_why: 'Used once, on this device, to work out which city you are in. It is matched against the local dataset — nothing is sent to a mapping service.',
+    coords: 'Coordinates', from_centre: 'from the city centre', resolved: 'Resolved to',
+    morning: 'Morning', noon: 'Noon', evening: 'Evening', night: 'Night',
+    for_this_date: 'For this date', no_advisory: 'no advisory', window: 'next 90 min', tab_arrive: 'Arrive', tab_brief: 'Briefing', tab_near: 'Nearby', tab_now: 'Now', tab_ask: 'Ask',
   },
   hi: {
     arrive: 'पहुँचे', briefing: 'ब्रीफ़िंग', nearby: 'आस-पास', now: 'अभी', ask: 'पूछें',
@@ -43,6 +48,53 @@ const S = {
     nothing_fits: 'इस अवधि में डेटा में कुछ भी खुला और पहुँच में नहीं है।',
     generating: 'डेटा से बनाया जा रहा है — इस तारीख़ पर पहली बार।',
     peak: 'व्यस्त मौसम', tab_arrive: 'पहुँचे', tab_brief: 'ब्रीफ़िंग', tab_near: 'आस-पास', tab_now: 'अभी', tab_ask: 'पूछें',
+  },
+  // DRAFT label sets for the city languages. Content comes from the API in these
+  // languages already; these are the UI labels around it. Fluent speakers must check.
+  kn: {
+    arrive: 'ಆಗಮನ', briefing: 'ಬ್ರೀಫಿಂಗ್', nearby: 'ಹತ್ತಿರ', now: 'ಈಗ', ask: 'ಕೇಳಿ',
+    tab_arrive: 'ಆಗಮನ', tab_brief: 'ಬ್ರೀಫಿಂಗ್', tab_near: 'ಹತ್ತಿರ', tab_now: 'ಈಗ', tab_ask: 'ಕೇಳಿ',
+    welcome: 'ಸುಸ್ವಾಗತ', use_location: 'ನನ್ನ ಸ್ಥಳ ಬಳಸಿ', cities: 'ಅಥವಾ ನಗರ ಆಯ್ಕೆಮಾಡಿ',
+    brief_me: 'ಬ್ರೀಫಿಂಗ್ ತೋರಿಸಿ', language: 'ಭಾಷೆ', output: 'ಔಟ್‌ಪುಟ್', text: 'ಪಠ್ಯ', voice: 'ಧ್ವನಿ',
+    trust: 'ಇಲ್ಲಿ ಯಾವುದೂ ಊಹೆಯಲ್ಲ. ಪ್ರತಿ ಮಾಹಿತಿಗೂ ಮೂಲ ಇದೆ.',
+    history: 'ಇತಿಹಾಸ', attractions: 'ಪ್ರಮುಖ ಆಕರ್ಷಣೆಗಳು', events: 'ಈಗ ಏನಿದೆ',
+    weather: 'ಇಂದು ಏನು ಧರಿಸಬೇಕು', culture_etiquette: 'ಸಂಸ್ಕೃತಿ ಮತ್ತು ಶಿಷ್ಟಾಚಾರ', safety: 'ಸುರಕ್ಷತೆ',
+    on_now: 'ಈಗ ನಡೆಯುತ್ತಿದೆ', upcoming: 'ಮುಂಬರುವ', none: 'ಏನೂ ನಿಗದಿಯಾಗಿಲ್ಲ',
+    verify: 'ಕಡಿಮೆ ವಿಶ್ವಾಸ · ಸ್ಥಳೀಯವಾಗಿ ಪರಿಶೀಲಿಸಿ', grounding_off: 'ಗ್ರೌಂಡಿಂಗ್ ಆಫ್',
+    date: 'ಬ್ರೀಫಿಂಗ್ ದಿನಾಂಕ', places: 'ಭೇಟಿ ನೀಡುವ ಸ್ಥಳಗಳು', stay: 'ಹತ್ತಿರದ ಹೋಟೆಲ್‌ಗಳು',
+    placeholder: 'ಈ ಸ್ಥಳದ ಬಗ್ಗೆ ಕೇಳಿ…', send: 'ಕೇಳಿ', read: 'ಓದಿ ಹೇಳಿ', stop: 'ನಿಲ್ಲಿಸಿ',
+    no_voice: 'ಈ ಸಾಧನದಲ್ಲಿ ಈ ಭಾಷೆಯ ಧ್ವನಿ ಇಲ್ಲ', loading: 'ಲೋಡ್ ಆಗುತ್ತಿದೆ…',
+    offline: 'API ಲಭ್ಯವಿಲ್ಲ — ಮಾದರಿ ಡೇಟಾ', nothing_open: 'ಈಗ ಯಾವುದೂ ತೆರೆದಿಲ್ಲ'
+  },
+  mr: {
+    arrive: 'आगमन', briefing: 'ब्रीफिंग', nearby: 'जवळपास', now: 'आत्ता', ask: 'विचारा',
+    tab_arrive: 'आगमन', tab_brief: 'ब्रीफिंग', tab_near: 'जवळपास', tab_now: 'आत्ता', tab_ask: 'विचारा',
+    welcome: 'स्वागत आहे', use_location: 'माझे स्थान वापरा', cities: 'किंवा शहर निवडा',
+    brief_me: 'ब्रीफिंग दाखवा', language: 'भाषा', output: 'आउटपुट', text: 'मजकूर', voice: 'आवाज',
+    trust: 'येथे काहीही अंदाजाने नाही. प्रत्येक विधानाचा स्रोत दिला आहे.',
+    history: 'इतिहास', attractions: 'प्रमुख आकर्षणे', events: 'आत्ता काय सुरू आहे',
+    weather: 'आज काय घालावे', culture_etiquette: 'संस्कृती आणि शिष्टाचार', safety: 'सुरक्षा',
+    on_now: 'आत्ता सुरू', upcoming: 'येणारे', none: 'काहीही नियोजित नाही',
+    verify: 'कमी विश्वास · स्थानिक पातळीवर तपासा', grounding_off: 'ग्राउंडिंग बंद',
+    date: 'ब्रीफिंगची तारीख', places: 'भेट देण्याची ठिकाणे', stay: 'जवळील हॉटेल्स',
+    placeholder: 'या ठिकाणाबद्दल विचारा…', send: 'विचारा', read: 'वाचून दाखवा', stop: 'थांबा',
+    no_voice: 'या उपकरणावर या भाषेचा आवाज नाही', loading: 'लोड होत आहे…',
+    offline: 'API उपलब्ध नाही — नमुना डेटा', nothing_open: 'आत्ता काहीही उघडे नाही'
+  },
+  te: {
+    arrive: 'చేరుకున్నారు', briefing: 'బ్రీఫింగ్', nearby: 'సమీపంలో', now: 'ఇప్పుడు', ask: 'అడగండి',
+    tab_arrive: 'చేరుకున్నారు', tab_brief: 'బ్రీఫింగ్', tab_near: 'సమీపం', tab_now: 'ఇప్పుడు', tab_ask: 'అడగండి',
+    welcome: 'స్వాగతం', use_location: 'నా స్థానం వాడు', cities: 'లేదా నగరాన్ని ఎంచుకోండి',
+    brief_me: 'బ్రీఫింగ్ చూపించు', language: 'భాష', output: 'అవుట్‌పుట్', text: 'టెక్స్ట్', voice: 'వాయిస్',
+    trust: 'ఇక్కడ ఏదీ ఊహ కాదు. ప్రతి విషయానికీ మూలం ఉంది.',
+    history: 'చరిత్ర', attractions: 'ముఖ్య ఆకర్షణలు', events: 'ఇప్పుడు ఏమి జరుగుతోంది',
+    weather: 'ఈరోజు ఏమి ధరించాలి', culture_etiquette: 'సంస్కృతి మరియు మర్యాద', safety: 'భద్రత',
+    on_now: 'ఇప్పుడు జరుగుతోంది', upcoming: 'రాబోయే', none: 'ఏమీ షెడ్యూల్ కాలేదు',
+    verify: 'తక్కువ విశ్వాసం · స్థానికంగా నిర్ధారించండి', grounding_off: 'గ్రౌండింగ్ ఆఫ్',
+    date: 'బ్రీఫింగ్ తేదీ', places: 'సందర్శించవలసిన ప్రదేశాలు', stay: 'సమీప హోటళ్లు',
+    placeholder: 'ఈ ప్రదేశం గురించి అడగండి…', send: 'అడగండి', read: 'చదివి వినిపించు', stop: 'ఆపు',
+    no_voice: 'ఈ పరికరంలో ఈ భాషకు వాయిస్ లేదు', loading: 'లోడ్ అవుతోంది…',
+    offline: 'API అందుబాటులో లేదు — నమూనా డేటా', nothing_open: 'ఇప్పుడు ఏదీ తెరిచి లేదు'
   }
 }
 export const t = (lang, key) => (S[lang] || S['en-IN'])[key] || S['en-IN'][key] || key

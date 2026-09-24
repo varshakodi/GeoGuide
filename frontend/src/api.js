@@ -11,7 +11,7 @@ async function get(path, params = {}) {
 }
 
 export const health = () => get('/health')
-export const context = (lat, lng, for_date) => get('/context', { lat, lng, for_date })
+export const context = (lat, lng, for_date, at) => get('/context', { lat, lng, for_date, at })
 export const dates = (city_id) => get('/dates', { city_id })
 export const briefing = (city_id, lang, for_date) => get('/briefing', { city_id, lang, for_date })
 export const nearby = (city_id, lat, lng, for_date) => get('/nearby', { city_id, lat, lng, for_date })
