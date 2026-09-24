@@ -12,6 +12,7 @@ from ai.briefing import build as build_briefing
 from ai.pipeline import answer_question
 from ai import session as sess
 from ai import translate
+from .ask_context import passages_for
 from ai.corpus import city_sections, load_documents
 from . import data_queries as dq
 from . import date_facts
@@ -131,7 +132,15 @@ class Ask(BaseModel):
 
 @router.post("/ask")
 def ask(body: Ask):
-    return answer_question(body.question, body.city_id, body.lang, session_id=body.session_id)
+    extra = passages_for(body.question, body.city_id, city_name(body.city_id), default_date(), _as_dt)
+    if extra and extra[0].kind == "range":
+        # A date outside the data has one true answer, the data's range; no model needed.
+        out = {"type": "answer", "language": "en-IN", "dropped": [], "flagged": False,
+               "claims": [{"text": extra[0].text, "source_labels": [extra[0].source_label],
+                           "confidence": "high"}]}
+        return translate.translate_result(out, body.lang)
+    return answer_question(body.question, body.city_id, body.lang, session_id=body.session_id,
+                           extra_passages=extra)
 
 
 class Reset(BaseModel):

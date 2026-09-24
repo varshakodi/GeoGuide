@@ -134,7 +134,8 @@ def log_retrieval(question, city_id, r, out):
         pass                       # logging must never break an answer
 
 
-def answer_question(question, city_id, lang="en-IN", max_sentences=None, session_id=None):
+def answer_question(question, city_id, lang="en-IN", max_sentences=None, session_id=None,
+                    extra_passages=None):
     """Follow-up Q&A. Every turn re-retrieves; state only resolves references."""
     reason = check_intent(question)                                   # layer 3
     if reason:
@@ -148,6 +149,15 @@ def answer_question(question, city_id, lang="en-IN", max_sentences=None, session
         return out
     asked, note = sess.rewrite(session_id, question)
     r = retrieve(asked, city_id)                                      # layer 1
+    if extra_passages and config.GROUNDING_ENABLED:
+        # Day-specific rows (weather, events, advisories, opening hours for the date asked)
+        # come from a real query, so they answer the question even when the guide text
+        # does not clear the relevance gate. They go first: they are the most specific.
+        kept = [] if r.gated else r.passages
+        r.passages = list(extra_passages) + kept
+        for i, p in enumerate(r.passages, 1):
+            p.n = i
+        r.gated = False
     if r.gated:
         out = refusal(1, "below_threshold" if r.top_score else "no_retrieval", lang)
         log_retrieval(question, city_id, r, out)
