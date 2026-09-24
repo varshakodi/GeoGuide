@@ -19,6 +19,16 @@ export const Skeleton = () => (
   </div>
 )
 
+export function Tooltip({ label }) {
+  return (
+    <span className="tooltip-wrap">
+      <button className="info-button" type="button" aria-label="Why this answer is trustworthy"
+              aria-describedby="trust-tooltip">i</button>
+      <span id="trust-tooltip" className="tooltip" role="tooltip">{label}</span>
+    </span>
+  )
+}
+
 /** Read-aloud. Hides itself when the device has no voice for the chosen language,
     rather than producing silence and looking broken. */
 export function Speak({ text, lang, compact }) {
