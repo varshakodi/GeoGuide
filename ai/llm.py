@@ -34,6 +34,7 @@ def _gemini(system, user, rounds=3, wait=20):
     from google.genai import types
     last = None
     for attempt in range(rounds):
+        worth_waiting = False
         for model, key in [(m, k) for m in config.GEMINI_MODELS for k in config.gemini_keys()]:
             try:
                 r = _client(key).models.generate_content(
@@ -43,8 +44,12 @@ def _gemini(system, user, rounds=3, wait=20):
             except Exception as e:
                 last = e
                 if _is_quota(e):
+                    # Overloads and per-minute limits clear; a per-day limit does not.
+                    worth_waiting = worth_waiting or "PerDay" not in str(e)
                     continue
                 raise
+        if not worth_waiting:
+            break
         if attempt < rounds - 1:
             print(f"    [llm] quota or overload on all models and keys, waiting {wait}s")
             time.sleep(wait)
