@@ -1,0 +1,125 @@
+"""All endpoints. Every one takes the city and the briefing date as parameters —
+no city and no date is ever hardcoded."""
+import os
+from datetime import date
+from fastapi import APIRouter, Query
+from pydantic import BaseModel
+
+from ai import config
+from ai.briefing import build as build_briefing
+from ai.pipeline import answer_question
+from . import data_queries as dq
+from .ranker import opens_earliest, rank, why_not
+
+router = APIRouter()
+
+
+def default_date():
+    return os.getenv("DEMO_DATE") or date.today().isoformat()
+
+
+def city_name(city_id):
+    con = dq.connect()
+    row = con.execute("SELECT name FROM cities WHERE city_id=?", (city_id,)).fetchone()
+    con.close()
+    return row["name"] if row else None
+
+
+def _as_dt(for_date):
+    """Advisory validity is compared against noon on the briefing date, so moving the
+    date also moves which advisories are in effect."""
+    from datetime import datetime
+    return datetime.fromisoformat(f"{for_date}T12:00:00+05:30")
+
+
+def briefing_context(city_id, name, for_date):
+    """Everything the briefing is grounded in, all recomputed for `for_date`."""
+    cur, up = dq.events(city_id, for_date)
+    season, peak = dq.season_for(city_id, for_date)
+    return {"weather": dq.weather(city_id, for_date),
+            "events_current": cur, "events_upcoming": up,
+            "advisories": dq.advisories(city_id, _as_dt(for_date)),
+            "attractions": dq.pois(city_id, limit=5, for_date=for_date, open_only=True),
+            "season": season, "peak_season": peak}, cur, up, season, peak
+
+
+@router.get("/context")
+def context(lat: float, lng: float, for_date: str = None):
+    city = dq.nearest_city(lat, lng)
+    d, rng = dq.clamp_date(city["city_id"], for_date or default_date())
+    w = dq.weather(city["city_id"], d)
+    season, peak = dq.season_for(city["city_id"], d)
+    return {"city": city, "date": d, "season": season, "peak_season": peak,
+            "date_range": rng, "weather_today": w[0] if w else None,
+            "languages": dq.languages_for(city["city_id"]),
+            "grounding_enabled": config.GROUNDING_ENABLED}
+
+
+@router.get("/dates")
+def dates(city_id: str):
+    """Feeds the date-shift control: the dataset's range and the weeks that have events."""
+    return {"range": dq.date_range(city_id), "today": default_date(),
+            "events": dq.event_days(city_id)}
+
+
+@router.get("/briefing")
+def briefing(city_id: str, lang: str = "en-IN", for_date: str = None, fresh: bool = False):
+    name = city_name(city_id)
+    d, rng = dq.clamp_date(city_id, for_date or default_date())
+    ctx, cur, up, season, peak = briefing_context(city_id, name, d)
+    sections = build_briefing(city_id, name, d, ctx, lang, use_cache=not fresh)
+    adv = ctx["advisories"]
+    return {"city_id": city_id, "city": name, "date": d, "date_range": rng, "language": lang,
+            "season": season, "peak_season": peak,
+            "time_state": "on_now" if cur else ("upcoming" if up else "none"),
+            "events_today": [{"name": e["name"], "start_date": e["start_date"], "end_date": e["end_date"]} for e in cur],
+            "next_event": ({"name": up[0]["name"], "start_date": up[0]["start_date"]} if up else None),
+            "advisory_state": adv[0]["level"] if adv else "none",
+            "grounding_enabled": config.GROUNDING_ENABLED,
+            "sections": sections}
+
+
+class Ask(BaseModel):
+    question: str
+    city_id: str
+    lang: str = "en-IN"
+    session_id: str | None = None
+
+
+@router.post("/ask")
+def ask(body: Ask):
+    return answer_question(body.question, body.city_id, body.lang, session_id=body.session_id)
+
+
+@router.get("/nearby")
+def nearby(city_id: str, lat: float = None, lng: float = None, for_date: str = None):
+    d, _ = dq.clamp_date(city_id, for_date or default_date())
+    return {"date": d, "pois": dq.pois(city_id, lat, lng, limit=8, for_date=d),
+            "hotels": dq.hotels(city_id)}
+
+
+@router.get("/now")
+def now(city_id: str, lat: float = None, lng: float = None, at: str = "15:00",
+        for_date: str = None, budget: float = None, window: int = 90):
+    d, _ = dq.clamp_date(city_id, for_date or default_date())
+    pois = dq.pois(city_id, lat, lng, limit=30, for_date=d)
+    picks = rank(pois, at, d, budget=budget, window=window)
+    out = {"date": d, "at": at, "window_minutes": window, "picks": picks,
+           "budget": budget, "city_id": city_id}
+    if not picks:
+        # Nothing open is a real answer. Say which field ruled each place out,
+        # and what opens earliest, so the screen is informative rather than blank.
+        near = sorted(pois, key=lambda p: p["distance_km"])[:4]
+        out["excluded"] = [{"name": p["name"], "distance_km": p["distance_km"],
+                            "reason": why_not(p, at, window, budget),
+                            "source_label": "activities_poi"} for p in near]
+        out["opens_earliest"] = opens_earliest(pois)
+    return out
+
+
+@router.get("/grounding")
+def grounding(enabled: bool = Query(None)):
+    """Demo switch. enabled=false empties retrieval, so every answer refuses at layer 1."""
+    if enabled is not None:
+        config.GROUNDING_ENABLED = enabled
+    return {"grounding_enabled": config.GROUNDING_ENABLED}
