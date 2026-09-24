@@ -53,7 +53,7 @@ function PlaceZoom({ open, onClose }) {
   const tags = String(place.tags || '').split(',').map(tag => tag.trim()).filter(Boolean)
   return <div className="fixed inset-0 z-[80] grid place-items-center p-4" role="dialog" aria-modal="true" aria-label={place.name}>
     <button type="button" aria-label="Close" onClick={close} className="absolute inset-0 bg-black/70 backdrop-blur-sm" style={{ opacity: shown ? 1 : 0, transition: `opacity ${ZOOM_MS}ms ease` }}/>
-    <article ref={panel} className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[2rem] border border-white/15 bg-[#101713] shadow-2xl"
+    <article ref={panel} data-lenis-prevent className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[2rem] border border-white/15 bg-[#101713] shadow-2xl"
       style={panelStyle}>
       <div className="on-photo relative h-64 sm:h-80">
         <img src={photoFor(place)} onError={e => fallBack(e, place)} alt="" className="absolute inset-0 h-full w-full object-cover"/>

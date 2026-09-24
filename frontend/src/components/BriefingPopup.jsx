@@ -67,7 +67,7 @@ export default function BriefingPopup({ ctx, date, lang: pageLang }) {
             className={`rounded-full px-3 py-2 text-sm font-extrabold transition ${lang === code ? 'bg-lime-300 text-black' : 'text-white/70 hover:text-white'}`}>{name}</button>)}
         </div>
       </header>
-      <div className="flex-1 space-y-3 overflow-y-auto overscroll-contain p-5">
+      <div data-lenis-prevent className="flex-1 space-y-3 overflow-y-auto overscroll-contain p-5">
         {state.error && <p className="rounded-2xl bg-white/[.05] p-4 text-sm font-bold text-white/75">The briefing could not be loaded from the backend.</p>}
         {!brief && !state.error && <div role="status" className="flex items-center gap-3 rounded-2xl bg-white/[.05] p-4 text-sm font-bold text-white/70"><span className="h-2.5 w-2.5 animate-pulse rounded-full bg-lime-300"/>{t(lang, 'loading')}</div>}
         {brief?.events_today?.length > 0 && <p className="rounded-2xl border border-[#ff6b57]/40 bg-[#ff6b57]/10 p-3 text-sm font-bold text-orange-50">{brief.events_today.map(e => `${e.name} · ${e.start_date}–${e.end_date}`).join(' · ')}</p>}
