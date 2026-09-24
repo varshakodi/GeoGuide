@@ -20,6 +20,10 @@ LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "")
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/chat")
+# Live requests fail fast to the extractive fallback; prewarm can raise these to wait out quotas.
+LLM_TIMEOUT_MS = int(os.getenv("LLM_TIMEOUT_MS", "30000"))
+LLM_QUOTA_ROUNDS = int(os.getenv("LLM_QUOTA_ROUNDS", "2"))
+LLM_QUOTA_WAIT = int(os.getenv("LLM_QUOTA_WAIT", "5"))
 
 # Demo switch: when false, retrieval returns nothing and every answer refuses.
 GROUNDING_ENABLED = os.getenv("GROUNDING_ENABLED", "true").lower() != "false"
