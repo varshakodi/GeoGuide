@@ -57,7 +57,7 @@ def test_follow_up_uses_the_qa_prompt(monkeypatch):
 def test_faq_answers_are_short_skip_the_lead_in_and_keep_the_rest():
     from backend.ai_routes import ask_faqs
     faqs = ask_faqs(BLR, limit=6)["faqs"]
-    assert len(faqs) == 6 and all(len(f["answer"]["claims"]) <= 2 for f in faqs)
+    assert len(faqs) == 6 and all(len(f["answer"]["claims"]) == 1 for f in faqs)
     etiquette = next(f["answer"] for f in faqs if "etiquette" in f["question"])
     shown = " ".join(c["text"] for c in etiquette["claims"])
     assert shown.startswith("Remove footwear at religious sites") and "awkwardness" not in shown

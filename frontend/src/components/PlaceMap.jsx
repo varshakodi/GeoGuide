@@ -58,11 +58,18 @@ export default function PlaceMap({ lang, pois = [], hotels = [], centre, at = '1
           const number = numberedIds.indexOf(id) + 1
           return (
             <g key={id} className="pin" onClick={() => onSelect?.(id)}
-               onMouseEnter={() => setHover(p)} onMouseLeave={() => setHover(null)}>
+               role={onSelect ? 'button' : undefined} tabIndex={onSelect ? 0 : undefined} aria-label={p.name}
+               onKeyDown={e => { if (onSelect && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onSelect(id) } }}
+               onMouseEnter={() => setHover(p)} onMouseLeave={() => setHover(null)}
+               onFocus={() => setHover(p)} onBlur={() => setHover(null)}
+               style={{ cursor: onSelect ? 'pointer' : 'default', outline: 'none' }}>
+              {/* A generous invisible hit area: the drawn pin is small once the map is scaled down. */}
+              <circle cx={p.x} cy={p.y} r="26" fill="transparent" />
+              {on && <circle cx={p.x} cy={p.y} r="22" fill="none" stroke="#c6ff00" strokeWidth="2" opacity=".6" />}
               {p.kind === 'hotel'
-                ? <rect x={p.x - 5} y={p.y - 5} width="10" height="10" rx="2" fill={fill}
-                        stroke="#fff" strokeWidth={on ? 2.5 : 1.5} />
-                : <><circle cx={p.x} cy={p.y} r={on ? 10 : 7} fill={fill} stroke="#080b0a" strokeWidth={on ? 3 : 2} />{number > 0 && <text x={p.x} y={p.y + 4} textAnchor="middle" fontSize="10" fontWeight="800" fill="#080b0a">{number}</text>}</>}
+                ? <rect x={p.x - 9} y={p.y - 9} width="18" height="18" rx="3" fill={fill}
+                        stroke="#fff" strokeWidth={on ? 3 : 2} />
+                : <><circle cx={p.x} cy={p.y} r={on ? 15 : 12} fill={fill} stroke="#080b0a" strokeWidth={on ? 3 : 2.5} />{number > 0 && <text x={p.x} y={p.y + 4.5} textAnchor="middle" fontSize="13" fontWeight="800" fill="#080b0a" pointerEvents="none">{number}</text>}</>}
             </g>
           )
         })}
@@ -84,8 +91,10 @@ export default function PlaceMap({ lang, pois = [], hotels = [], centre, at = '1
           </g>
         )}
       </svg>
-      <div className="flex flex-wrap gap-3 pt-2 text-xs font-bold text-white/60">
-        <span>● open at {at}</span><span>○ closed</span><span>■ hotel</span><span className="text-white/40">offline-safe map · backend coordinates</span>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-2 text-xs font-semibold text-white/70">
+        <span className="inline-flex items-center gap-1.5"><i className="h-3 w-3 rounded-full bg-[#c6ff00]" />open at {at}</span>
+        <span className="inline-flex items-center gap-1.5"><i className="h-3 w-3 rounded-full bg-white/25" />closed</span>
+        {hotels.length > 0 && <span className="inline-flex items-center gap-1.5"><i className="h-3 w-3 rounded-sm bg-[#e09a78]" />hotel</span>}
       </div>
     </div>
   )
