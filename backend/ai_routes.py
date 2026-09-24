@@ -1,6 +1,7 @@
 """All endpoints. Every one takes the city and the briefing date as parameters —
 no city and no date is ever hardcoded."""
 import os
+import re
 from datetime import date
 from typing import Optional
 from fastapi import APIRouter, Query
@@ -112,10 +113,12 @@ def ask_suggestions(city_id: str, limit: int = Query(4, ge=1, le=8)):
             continue
         seen.add(source)
         title = meta.get("title") or meta.get("section") or source
+        city = city_name(city_id) or "this city"
         if meta.get("level") == "poi":
-            question = f"What should I know about {title}?"
+            question = f"What is {title}?"
         else:
-            question = f"What should I know about {str(title).replace('_', ' ')}?"
+            section = str(meta.get("section") or title).replace('_', ' ')
+            question = f"What is {city}'s {section}?"
         questions.append({"question": question, "source_label": source,
                           "section": meta.get("section"), "level": meta.get("level")})
         if len(questions) >= limit:
@@ -131,9 +134,10 @@ def ask_faqs(city_id: str, lang: str = "en-IN", limit: int = Query(4, ge=1, le=6
     faqs = []
     for item in prompt_data["sources"]:
         passages = [doc for doc in documents if doc["meta"].get("source_label") == item["source_label"]]
-        claims = [{"text": doc["text"], "source_labels": [item["source_label"]],
+        sentence = re.split(r"(?<=[.!?])\s+", passages[0]["text"].strip())[0] if passages else ""
+        claims = [{"text": sentence, "source_labels": [item["source_label"]],
                    "confidence": doc["meta"].get("confidence", "high")}
-                  for doc in passages[:2]]
+                  for doc in passages[:1] if sentence]
         answer = {"type": "answer", "claims": claims, "language": lang, "grounded": bool(claims)}
         if not claims:
             answer = {"type": "refusal", "reason": "no_retrieval",
