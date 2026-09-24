@@ -168,6 +168,9 @@ def _suggestions(city_id, limit, documents):
     return {"city_id": city_id, "questions": [item["question"] for item in questions], "sources": questions}
 
 
+FAQ_MAX_SENTENCES = 6
+
+
 @router.get("/ask/faqs")
 def ask_faqs(city_id: str, lang: str = "en-IN", limit: int = Query(4, ge=1, le=6)):
     """Return FAQ pairs made from exact retrieved RAG passages, without generation."""
@@ -175,10 +178,13 @@ def ask_faqs(city_id: str, lang: str = "en-IN", limit: int = Query(4, ge=1, le=6
     faqs = []
     for item in _suggestions(city_id, limit, documents)["sources"]:
         passages = [doc for doc in documents if doc["meta"].get("source_label") == item["source_label"]]
-        sentence = re.split(r"(?<=[.!?])\s+", passages[0]["text"].strip())[0] if passages else ""
-        claims = [{"text": sentence, "source_labels": [item["source_label"]],
-                   "confidence": doc["meta"].get("confidence", "high")}
-                  for doc in passages[:1] if sentence]
+        # The index stores overlapping 2-sentence windows; rebuild the row's full text from them
+        # so the answer keeps its guidelines instead of stopping at the opening sentence.
+        sentences = list(dict.fromkeys(s for doc in passages
+                                       for s in re.split(r"(?<=[.!?])\s+", doc["text"].strip()) if s))
+        confidence = passages[0]["meta"].get("confidence", "high") if passages else "high"
+        claims = [{"text": sentence, "source_labels": [item["source_label"]], "confidence": confidence}
+                  for sentence in sentences[:FAQ_MAX_SENTENCES]]
         answer = {"type": "answer", "claims": claims, "language": lang, "grounded": bool(claims)}
         if not claims:
             answer = {"type": "refusal", "reason": "no_retrieval",

@@ -38,7 +38,7 @@ def _gemini(system, user, rounds=3, wait=20):
             try:
                 r = _client(key).models.generate_content(
                     model=config.GEMINI_MODEL, contents=user,
-                    config=types.GenerateContentConfig(system_instruction=system, temperature=0.2))
+                    config=types.GenerateContentConfig(system_instruction=system or None, temperature=0.2))
                 return (r.text or "").strip()
             except Exception as e:
                 last = e
@@ -54,8 +54,8 @@ def _gemini(system, user, rounds=3, wait=20):
 def _ollama(system, user):
     body = json.dumps({"model": config.OLLAMA_MODEL, "stream": False,
                        "options": {"temperature": 0.2},
-                       "messages": [{"role": "system", "content": system},
-                                    {"role": "user", "content": user}]}).encode()
+                       "messages": ([{"role": "system", "content": system}] if system else [])
+                                   + [{"role": "user", "content": user}]}).encode()
     req = urllib.request.Request(config.OLLAMA_URL, data=body,
                                  headers={"Content-Type": "application/json"})
     try:
