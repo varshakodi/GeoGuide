@@ -13,7 +13,7 @@ DIR = Path(config.CHROMA_PATH).parent / ".cache" / "briefings"
 
 
 def key(city_id, lang, today):
-    raw = f"{city_id}|{lang}|{today}|{config.GEMINI_MODEL}|{config.LLM_PROVIDER}|{config.GROUNDING_ENABLED}"
+    raw = f"v2|{city_id}|{lang}|{today}|{config.GEMINI_MODEL}|{config.LLM_PROVIDER}|{config.GROUNDING_ENABLED}"
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
 
