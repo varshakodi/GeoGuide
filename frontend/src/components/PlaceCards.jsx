@@ -7,6 +7,7 @@ import { fallBack, photoFor } from './placePhotos.js'
 
 const ZOOM_MS = 320
 const label = value => String(value || '').replaceAll('_', ' ')
+const hours = p => (p.opens_at ? ` · ${p.opens_at}–${p.closes_at || 'late'}` : '')
 const money = p => (p.entry_cost === '0.00' ? 'Free' : [p.currency, p.entry_cost].filter(Boolean).join(' '))
 
 function Fact({ name, value }) {
@@ -91,8 +92,8 @@ export default function PlaceCards({ places }) {
         <div className="on-photo relative h-44 overflow-hidden">
           <img src={photoFor(place)} onError={e => fallBack(e, place)} alt="" loading="lazy" className="h-full w-full object-cover transition duration-500 group-hover:scale-105"/>
           <span className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"/>
-          <span className="absolute left-3 top-3 rounded-full bg-black/50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white backdrop-blur">{label(place.poi_category)}</span>
-          <span className={`absolute right-3 top-3 rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${place.closed_today ? 'bg-white/25 text-white backdrop-blur' : 'bg-lime-300 text-black'}`}>{place.closed_today ? 'Closed today' : 'Open today'}</span>
+          <span className="absolute left-3 top-3 max-w-[40%] truncate rounded-full bg-black/50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white backdrop-blur">{label(place.poi_category)}</span>
+          <span className={`absolute right-3 top-3 whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${place.closed_today ? 'bg-black/60 text-white backdrop-blur' : 'bg-lime-300 text-black'}`}>{place.closed_today ? 'Closed today' : `Open today${hours(place)}`}</span>
         </div>
         <div className="p-4">
           <h3 className="text-lg font-black leading-tight">{place.name}</h3>

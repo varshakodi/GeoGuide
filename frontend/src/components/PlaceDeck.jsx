@@ -9,6 +9,12 @@ import { fallBack, photoFor } from './placePhotos.js'
 const INTERVAL_MS = 3400
 const FLY_MS = 450
 const label = value => String(value || '').replaceAll('_', ' ')
+// Whether it is open at this moment, with the time that matters next. Nearby cards say
+// whether it opens today at all; together they read "Closed now · opens 06:00" and
+// "Open today · 06:00–18:00" instead of seeming to disagree.
+const status = (place, open) => place.closed_today ? 'Closed today'
+  : open ? (place.closes_at ? `Open now · until ${place.closes_at}` : 'Open now')
+  : (place.opens_at ? `Closed now · opens ${place.opens_at}` : 'Closed now')
 
 function cardStyle(depth, leaving) {
   if (leaving) return { transform: 'translate(115%, -4%) rotate(14deg)', opacity: 0, zIndex: 50 }
@@ -52,7 +58,7 @@ export default function PlaceDeck({ places, isOpen, onOpen }) {
         const open = isOpen(place)
         const isTop = depth === 0 && leaving === null
         return <button key={place.poi_id} type="button" tabIndex={isTop ? 0 : -1} aria-hidden={!isTop}
-          aria-label={`${place.name}, ${label(place.poi_category)}, ${place.distance_km} km, ${open ? 'open' : 'closed'}. Show details`}
+          aria-label={`${place.name}, ${label(place.poi_category)}, ${place.distance_km} km, ${status(place, open)}. Show details`}
           onClick={() => { if (isTop && !drag.current?.moved) onOpen(place) }}
           onPointerDown={e => { if (isTop) drag.current = { x: e.clientX, moved: false } }}
           onPointerMove={e => { if (drag.current && Math.abs(e.clientX - drag.current.x) > 8) drag.current.moved = true }}
@@ -68,12 +74,12 @@ export default function PlaceDeck({ places, isOpen, onOpen }) {
           className="on-photo absolute inset-x-0 top-0 h-[290px] overflow-hidden rounded-[1.75rem] border border-white/15 bg-[#121815] text-left shadow-2xl shadow-black/50 focus:outline-none focus:ring-2 focus:ring-lime-300">
           <img src={photoFor(place)} onError={e => fallBack(e, place)} alt="" draggable="false" className="absolute inset-0 h-full w-full object-cover"/>
           <span className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-black/10"/>
-          <span className="absolute left-4 right-4 top-4 flex items-center justify-between">
-            <span className="rounded-full bg-black/45 px-3 py-1 text-[11px] font-black uppercase tracking-wider text-white backdrop-blur">{label(place.poi_category)}</span>
-            <span className={`rounded-full px-3 py-1 text-[11px] font-black ${open ? 'bg-lime-300 text-black' : 'bg-white/20 text-white backdrop-blur'}`}>{open ? 'Open' : 'Closed'}</span>
+          <span className="absolute right-4 top-4">
+            <span className={`whitespace-nowrap rounded-full px-3 py-1 text-[11px] font-black ${open ? 'bg-lime-300 text-black' : 'bg-black/60 text-white backdrop-blur'}`}>{status(place, open)}</span>
           </span>
           <span className="absolute bottom-4 left-4 right-4">
-            <span className="block text-2xl font-black leading-tight tracking-[-.03em] text-white">{place.name}</span>
+            <span className="block text-[11px] font-black uppercase tracking-[.18em] text-lime-300">{label(place.poi_category)}</span>
+            <span className="mt-1 block text-2xl font-black leading-tight tracking-[-.03em] text-white">{place.name}</span>
             <span className="mt-1 block text-sm font-bold text-white/75">{place.distance_km} km away{place.opens_at ? ` · ${place.opens_at}–${place.closes_at || 'late'}` : ''}</span>
           </span>
         </button>
