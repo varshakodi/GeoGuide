@@ -7,6 +7,7 @@ import usePageTranslation from './hooks/usePageTranslation.js'
 import PlaceMap, { isOpenAt } from './components/PlaceMap.jsx'
 import PlaceDeck from './components/PlaceDeck.jsx'
 import PlaceCards from './components/PlaceCards.jsx'
+import { fallBack, photoFor } from './components/placePhotos.js'
 import WeatherIcon, { weatherLabel } from './components/WeatherIcon.jsx'
 import BriefingPopup from './components/BriefingPopup.jsx'
 import ReadAloud from './components/ReadAloud.jsx'
@@ -155,22 +156,61 @@ function Reader({ text, lang, onSentence }) {
   return voice ? <button type="button" onClick={play} aria-pressed={speaking} className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[.06] px-4 py-2 text-xs font-black hover:border-lime-300"><Icon name={speaking ? 'stop' : 'speaker'}/>{speaking ? t(lang, 'stop') : t(lang, 'read')}</button> : <span className="text-xs font-bold text-white/50">{t(lang, 'no_voice')}</span>
 }
 
+// Details for a stay or a place, as a side sheet. Every fact is a column of the row it
+// came from, and the source chip at the bottom opens that row.
+const SCORE_WORDS = [[9, 'Exceptional'], [8, 'Very good'], [7, 'Good'], [6, 'Pleasant'], [0, 'Mixed reviews']]
+const scoreWord = score => SCORE_WORDS.find(([min]) => Number(score) >= min)?.[1]
+function DetailFact({ label, value }) {
+  return <div className="min-w-0 rounded-2xl bg-white/[.05] px-3 py-2.5"><dt className="text-[10px] font-black uppercase tracking-wider text-white/45">{label}</dt><dd className="mt-0.5 truncate text-sm font-black">{value}</dd></div>
+}
 function LocationDetailDrawer({ location, onClose }) {
+  const [evidence, setEvidence] = useState(null)
+  useEffect(() => {
+    if (!location) return undefined
+    // The evidence drawer handles its own Escape; this one closes only when it is not open.
+    const onKey = e => { if (e.key === 'Escape' && !evidence) onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [location, onClose, evidence])
+  useEffect(() => { setEvidence(null) }, [location])
   if (!location) return null
   const isHotel = Boolean(location.hotel_id)
   const tags = String(location.tags || '').split(',').map(tag => tag.trim()).filter(Boolean)
   const money = location.entry_cost === '0.00' ? 'Free' : [location.currency, location.entry_cost].filter(Boolean).join(' ')
-  return <aside data-lenis-prevent className="fixed inset-y-0 right-0 z-[70] w-full max-w-md overflow-y-auto border-l border-white/15 bg-[#101713] p-6 shadow-2xl" aria-label="Location details">
-    <div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-black uppercase tracking-[.25em] text-lime-300">{isHotel ? 'Stay details' : 'Place details'}</p><h2 className="mt-2 text-3xl font-black">{location.name}</h2></div><button type="button" onClick={onClose} aria-label="Back to locations" className="rounded-full border border-white/15 px-3 py-2 text-xs font-black">Back</button></div>
-    {location.description && <p className="mt-6 text-sm leading-6 text-white/75">{location.description}</p>}
-    <dl className="mt-6 grid grid-cols-2 gap-3 text-sm">
-      {isHotel ? <><div className="rounded-2xl bg-white/[.05] p-3"><dt className="text-[10px] font-black uppercase text-white/45">Rating</dt><dd className="mt-1 font-black">{location.star_rating ?? '—'} stars</dd></div><div className="rounded-2xl bg-white/[.05] p-3"><dt className="text-[10px] font-black uppercase text-white/45">Guest score</dt><dd className="mt-1 font-black">{location.guest_score ?? '—'} · {location.review_count ?? 0} reviews</dd></div><div className="rounded-2xl bg-white/[.05] p-3"><dt className="text-[10px] font-black uppercase text-white/45">Check-in</dt><dd className="mt-1 font-black">{location.checkin_time || '—'}</dd></div><div className="rounded-2xl bg-white/[.05] p-3"><dt className="text-[10px] font-black uppercase text-white/45">Check-out</dt><dd className="mt-1 font-black">{location.checkout_time || '—'}</dd></div></> : <><div className="rounded-2xl bg-white/[.05] p-3"><dt className="text-[10px] font-black uppercase text-white/45">Today</dt><dd className="mt-1 font-black">{location.closed_today ? 'Closed today' : 'Open today'}</dd></div><div className="rounded-2xl bg-white/[.05] p-3"><dt className="text-[10px] font-black uppercase text-white/45">Hours</dt><dd className="mt-1 font-black">{location.opens_at || '—'} – {location.closes_at || '—'}</dd></div><div className="rounded-2xl bg-white/[.05] p-3"><dt className="text-[10px] font-black uppercase text-white/45">Entry fee</dt><dd className="mt-1 font-black">{money || '—'}</dd></div><div className="rounded-2xl bg-white/[.05] p-3"><dt className="text-[10px] font-black uppercase text-white/45">Visit length</dt><dd className="mt-1 font-black">{location.typical_duration_minutes ?? '—'} min</dd></div></>}
-      <div className="rounded-2xl bg-white/[.05] p-3"><dt className="text-[10px] font-black uppercase text-white/45">Distance</dt><dd className="mt-1 font-black">{location.distance_km ?? location.distance_to_centre_km ?? '—'} km</dd></div><div className="rounded-2xl bg-white/[.05] p-3"><dt className="text-[10px] font-black uppercase text-white/45">Accessibility</dt><dd className="mt-1 font-black">{location.accessibility || '—'}</dd></div>
-    </dl>
-    {location.address_line && <p className="mt-4 rounded-2xl bg-white/[.05] p-3 text-sm font-bold text-white/75">{location.address_line}</p>}
-    {tags.length > 0 && <div className="mt-4 flex flex-wrap gap-2">{tags.map(tag => <span key={tag} className="rounded-full border border-white/15 px-3 py-1 text-[10px] font-black uppercase text-white/65">{tag}</span>)}</div>}
-    {(location.lat || location.lng) && <p className="mt-6 font-mono text-[11px] text-white/40">{location.lat}, {location.lng}</p>}
-  </aside>
+  const stars = Math.max(0, Math.min(5, Number(location.star_rating) || 0))
+  const label = isHotel ? `hotels / ${location.hotel_id}` : `activities_poi / ${location.poi_id}`
+  const maps = location.lat != null && location.lng != null ? `https://www.google.com/maps/search/?api=1&query=${location.lat},${location.lng}` : null
+  return <>
+    <button type="button" aria-label="Close details" onClick={onClose} className="fixed inset-0 z-[69] bg-black/60 backdrop-blur-sm"/>
+    <aside data-lenis-prevent role="dialog" aria-modal="true" aria-label={location.name} className="fixed inset-y-0 right-0 z-[70] w-full max-w-md overflow-y-auto overscroll-contain border-l border-white/15 bg-[#101713] shadow-2xl">
+      <div className={`relative ${isHotel ? 'h-32 bg-gradient-to-br from-orange-300/25 via-lime-300/10 to-transparent' : 'on-photo h-52'}`}>
+        {!isHotel && <><img src={photoFor(location)} onError={e => fallBack(e, location)} alt="" className="absolute inset-0 h-full w-full object-cover"/><span className="absolute inset-0 bg-gradient-to-t from-[#101713] via-black/20 to-black/10"/></>}
+        {isHotel && <span aria-hidden="true" className="absolute bottom-3 right-6 text-6xl opacity-80">🏨</span>}
+        <button type="button" onClick={onClose} aria-label="Close details" className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-full border border-white/20 bg-black/40 text-lg text-white backdrop-blur hover:border-lime-300">×</button>
+      </div>
+      <div className="space-y-6 px-6 pb-8 pt-2">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[.25em] text-lime-300">{isHotel ? `Stay · ${String(location.property_type || 'hotel').replaceAll('_', ' ')}` : String(location.poi_category || 'Place').replaceAll('_', ' ')}</p>
+          <h2 className="mt-2 text-3xl font-black leading-tight tracking-[-.03em]">{location.name}</h2>
+          {isHotel && stars > 0 && <p className="mt-2 flex items-center gap-2 text-sm font-bold text-white/70"><span aria-hidden="true" className="tracking-[.15em] text-lime-300">{'★'.repeat(stars)}</span>{stars}-star {String(location.property_type || 'hotel').replaceAll('_', ' ')}</p>}
+          {location.address_line && <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-bold text-white/70"><span>⌖ {location.address_line}</span>{maps && <a href={maps} target="_blank" rel="noopener noreferrer" className="text-lime-300 underline decoration-lime-300/40 underline-offset-4 hover:decoration-lime-300">Open in Maps ↗</a>}</p>}
+        </div>
+        {isHotel && location.guest_score != null && <div className="flex items-center gap-4 rounded-2xl border border-white/10 bg-white/[.04] p-4">
+          <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-lime-300 text-xl font-black text-black">{location.guest_score}</span>
+          <div><p className="font-black">{scoreWord(location.guest_score)}</p><p className="text-xs font-bold text-white/55">Guest score out of 10 · {location.review_count ?? 0} reviews</p></div>
+        </div>}
+        <dl className={`grid gap-2 ${isHotel ? 'grid-cols-3' : 'grid-cols-2'}`}>
+          {isHotel
+            ? <><DetailFact label="Check-in" value={location.checkin_time || '—'}/><DetailFact label="Check-out" value={location.checkout_time || '—'}/><DetailFact label="To centre" value={`${location.distance_to_centre_km ?? '—'} km`}/></>
+            : <><DetailFact label="Today" value={location.closed_today ? 'Closed' : `${location.opens_at || '—'}–${location.closes_at || '—'}`}/><DetailFact label="Entry" value={money || '—'}/><DetailFact label="Visit" value={`${location.typical_duration_minutes ?? '—'} min`}/><DetailFact label="Distance" value={`${location.distance_km ?? '—'} km`}/>{location.accessibility && <DetailFact label="Access" value={location.accessibility}/>}</>}
+        </dl>
+        {location.description && <section><h3 className="text-[10px] font-black uppercase tracking-[.2em] text-white/45">{isHotel ? 'About this stay' : 'About this place'}</h3><p className="mt-2 text-sm leading-7 text-white/80">{location.description}</p></section>}
+        {tags.length > 0 && <div className="flex flex-wrap gap-2">{tags.map(tag => <span key={tag} className="rounded-full border border-white/15 px-3 py-1 text-[10px] font-black uppercase text-white/65">{tag}</span>)}</div>}
+        <p className="flex flex-wrap items-center gap-2 border-t border-white/10 pt-4 text-xs font-bold text-white/45">From the PS-13 database<Cite label={label} onOpen={value => setEvidence({ labels: [value] })}/></p>
+      </div>
+    </aside>
+    <EvidenceDrawer open={evidence} onClose={() => setEvidence(null)}/>
+  </>
 }
 
 function LegacyArriveScreen2({ ctx, places, brief, geo, go, onCity, scene }) {
@@ -245,7 +285,7 @@ function LegacyNearbyScreen({ places, loading, lang }) { return <div /> }
 // the field in brackets. Labels that name a query (row ids, city passages, KB chunks, POI
 // facts) open the evidence drawer; field-style reasons such as activities_poi.closes_at
 // are shown but not clickable, since they name a column rather than a row.
-const RECORD_TABLES = /^(events_festivals|weather_daily|safety_advisories|activities_poi|cities)$/
+const RECORD_TABLES = /^(events_festivals|weather_daily|safety_advisories|activities_poi|hotels|cities)$/
 function parseLabel(label) {
   const text = String(label || '')
   const m = text.match(/^(.*?)\s*\(([a-z_/]+)\)$/)

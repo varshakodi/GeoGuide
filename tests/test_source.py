@@ -44,3 +44,8 @@ def test_right_now_reason_on_a_pick_opens_that_poi_row():
     out = resolve("activities_poi / poi_c07155aa (lat/lng)")
     assert out["field"] == "lat/lng" and out["query"] == "poi_id = 'poi_c07155aa'"
     assert out["rows"][0]["name"] == "Bengaluru Bird Sanctuary"
+
+
+def test_hotel_label_returns_that_hotel():
+    out = resolve("hotels / htl_ed48c7a2")
+    assert out["table"] == "hotels" and out["rows"][0]["name"] == "Hillview Kothi Boutique Stay"
