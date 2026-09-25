@@ -197,11 +197,48 @@ function LegacyBriefingScreen({ brief, ctx, date, lang, setDate, loadBriefing, l
   return <div className="space-y-6"><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-[10px] font-black uppercase tracking-[.3em] text-lime-300">Briefing / {date}</p><h1 className="mt-3 text-5xl font-black tracking-[-.07em]">{brief?.city || ctx?.city?.name}</h1></div><div className="flex flex-wrap items-center gap-2"><Reader text={briefingText} lang={lang} onSentence={setActiveSentence}/><button translate="no" type="button" onClick={toggleGrounding} aria-pressed={grounding} className={`rounded-full border px-4 py-2 text-xs font-black ${grounding ? 'border-emerald-300/40 text-emerald-300' : 'border-amber-300/40 text-amber-200'}`}>{grounding ? 'Grounding on' : 'Grounding off'}</button></div></div>{activeSentence >= 0 && <div className="rounded-2xl border border-orange-200/25 bg-orange-300/10 p-4"><p className="text-[10px] font-black uppercase tracking-[.2em] text-orange-200">Now reading</p><p className="mt-2 text-sm font-bold leading-6 text-orange-50">{splitSentences(briefingText)[activeSentence]}</p></div>}<div className="glass rounded-3xl p-4"><DateScrubber lang={lang} date={date} range={ctx?.date_range} events={brief?.events_today || []} onChange={value => { setDate(value); loadBriefing(value) }}/></div>{loading && !brief ? <Loading/> : brief ? <>{brief.events_today?.length ? <div className="rounded-2xl border border-[#ff6b57]/40 bg-[#ff6b57]/10 p-4 text-sm font-bold text-orange-50">{brief.events_today.map(e => `${e.name} · ${e.start_date}–${e.end_date}`).join(' · ')}</div> : <div className="rounded-2xl border border-white/10 bg-white/[.04] p-4 text-sm font-bold text-white/65">No events on your dates.</div>}{SECTIONS.map(key => { const section = brief.sections?.[key]; if (!section) return null; if (section.type !== 'answer') return <article key={key} className="rounded-3xl border-l-2 border-rose-300 bg-rose-400/10 p-5"><h2 className="text-lg font-black">{t(lang, key)}</h2><p className="mt-3 text-sm text-white/75">{section.message}</p></article>; const text = section.claims.map(c => c.text).join(' '); const sources = [...new Set(section.claims.flatMap(c => c.source_labels || []))]; return <article key={key} className="glass rounded-3xl p-5"><h2 className="text-lg font-black">{t(lang, key)}</h2><p className="mt-3 max-w-3xl text-sm leading-7 text-white/80">{text}</p><SourceReceipt sources={sources}/></article> })}</> : <div className="rounded-3xl border border-white/10 p-6 text-white/60">No briefing loaded yet.</div>}</div>
 }
 
-function NearbyScreen({ places, loading, lang }) {
-  const [selectedLocation, setSelectedLocation] = useState(null)
-  return <div className="space-y-7"><div><p className="text-[10px] font-black uppercase tracking-[.3em] text-lime-300">Nearby</p><h1 className="mt-3 text-5xl font-black tracking-[-.07em]">Places to visit.</h1>{places && <p className="mt-2 text-sm font-bold text-white/60">{places.pois?.length || 0} places nearby, nearest first</p>}</div>{!places ? <Loading/> : <><section><PlaceCards places={places?.pois || []}/></section><section><h2 className="mb-3 text-2xl font-black">Stay nearby</h2><div className="grid gap-3 md:grid-cols-2">{(places?.hotels || []).map(h => <button type="button" key={h.hotel_id} onClick={() => setSelectedLocation(h)} className="grid grid-cols-[auto_1fr] gap-4 rounded-3xl border border-white/10 bg-white/[.04] p-4 text-left hover:bg-white/[.08]"><div className="grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-orange-300/40 to-slate-950 text-2xl">🏨</div><div><h3 className="font-black">{h.name}</h3><p className="mt-2 text-xs font-bold text-white/65">★ {h.star_rating ?? h.guest_score ?? '—'} · ⌖ {h.distance_to_centre_km} km from centre</p></div></button>)}</div></section></>}<LocationDetailDrawer location={selectedLocation} onClose={() => setSelectedLocation(null)}/></div>
+// Smooth scrolling owns the page, so jumps to a section go through it; without it (reduced
+// motion) the browser scrolls. The offset clears the sticky header.
+const smoothScroll = { lenis: null }
+function scrollToElement(el) {
+  if (!el) return
+  if (smoothScroll.lenis) smoothScroll.lenis.scrollTo(el, { offset: -110 })
+  else el.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
+// Places to visit come first, since they are what the MVP asks for. Places to stay sit
+// beside them on wide screens, staying in view while the grid scrolls, and are one tap
+// away on a phone.
+function NearbyScreen({ places, loading, lang }) {
+  const [selectedLocation, setSelectedLocation] = useState(null)
+  const pois = places?.pois || []
+  const hotels = places?.hotels || []
+  const toStays = () => scrollToElement(document.getElementById('stays'))
+  return <div className="space-y-7">
+    <div>
+      <p className="text-[10px] font-black uppercase tracking-[.3em] text-lime-300">Nearby</p>
+      <h1 className="mt-3 text-5xl font-black tracking-[-.07em]">Places to visit.</h1>
+      {places && <div className="mt-3 flex flex-wrap items-center gap-2">
+        <p className="text-sm font-bold text-white/60">{pois.length} places nearby, nearest first</p>
+        {hotels.length > 0 && <button type="button" onClick={toStays} className="rounded-full border border-white/15 bg-white/[.05] px-3 py-1.5 text-xs font-black text-white hover:border-lime-300 lg:hidden">{hotels.length} places to stay ↓</button>}
+      </div>}
+    </div>
+    {!places ? <Loading/> : <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
+      <section aria-label="Places to visit"><PlaceCards places={pois}/></section>
+      <aside id="stays" aria-labelledby="stays-heading" data-lenis-prevent className="scroll-mt-32 rounded-3xl border border-white/10 bg-white/[.04] p-4 lg:sticky lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto" style={{ top: 'calc(var(--header-h, 74px) + 16px)' }}>
+        <h2 id="stays-heading" className="pr-10 text-xl font-black">Stay nearby</h2><p className="mt-0.5 text-xs font-bold text-white/50">{hotels.length} stays · best rated first</p>
+        {hotels.length === 0
+          ? <p className="mt-3 text-sm text-white/60">No stays listed for this city.</p>
+          : <div className="mt-3 space-y-2">{hotels.map(h => <button key={h.hotel_id} type="button" onClick={() => setSelectedLocation(h)} className="flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-white/[.05] p-3 text-left transition hover:border-lime-300/60 hover:bg-white/[.08] focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-300">
+              <span aria-hidden="true" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-orange-300/40 to-slate-950 text-lg">🏨</span>
+              <span className="min-w-0 flex-1"><span className="block font-black leading-snug">{h.name}</span><span className="mt-0.5 block text-xs font-bold text-white/60">★ {h.star_rating ?? '—'}{h.guest_score != null ? ` · ${h.guest_score}/10` : ''} · {h.distance_to_centre_km} km from centre</span></span>
+              <span aria-hidden="true" className="text-lg text-white/40">›</span>
+            </button>)}</div>}
+      </aside>
+    </div>}
+    <LocationDetailDrawer location={selectedLocation} onClose={() => setSelectedLocation(null)}/>
+  </div>
+}
 function LegacyNearbyScreen({ places, loading, lang }) { return <div /> }
 
 // A citation label as a record reference: the table dimmed, the row id or chunk bright,
@@ -464,7 +501,7 @@ export default function App() {
   useEffect(() => { let asked = true; try { asked = localStorage.getItem('geoguide-location-asked') === '1'; localStorage.setItem('geoguide-location-asked', '1') } catch { /* storage blocked */ } const request = () => geo.requestLocation(); if (!asked) { request(); return } navigator.permissions?.query({ name: 'geolocation' }).then(state => { if (state.state === 'granted') request() }).catch(() => {}) }, []) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (ctx?.city?.city_id) loadAskSuggestions(ctx.city.city_id, lang) }, [ctx?.city?.city_id, lang, loadAskSuggestions])
   useEffect(() => { if (tab !== 'now' || !ctx) return; const timer = setTimeout(loadNow, 300); return () => clearTimeout(timer) }, [tab, ctx, time, budget, windowMinutes, loadNow])
-  useEffect(() => { if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return; const lenis = new Lenis({ duration: 1.05, smoothWheel: true, allowNestedScroll: true }); let id; const raf = value => { lenis.raf(value); id = requestAnimationFrame(raf) }; id = requestAnimationFrame(raf); return () => { cancelAnimationFrame(id); lenis.destroy() } }, [])
+  useEffect(() => { if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return; const lenis = new Lenis({ duration: 1.05, smoothWheel: true, allowNestedScroll: true }); smoothScroll.lenis = lenis; let id; const raf = value => { lenis.raf(value); id = requestAnimationFrame(raf) }; id = requestAnimationFrame(raf); return () => { cancelAnimationFrame(id); smoothScroll.lenis = null; lenis.destroy() } }, [])
   const go = async id => { setTab(id); window.scrollTo({ top: 0, behavior: 'smooth' }); if (id === 'nearby' && !places) await loadNearby(); if (id === 'now') await loadNow() }
   // The date a shift came from, so the briefing can show what moved. Kept per city.
   const [shift, setShift] = useState(null)
