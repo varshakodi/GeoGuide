@@ -79,6 +79,7 @@ export const now = (city_id, lat, lng, at, for_date, budget, window) =>
   get(GEO_ENDPOINTS.backend.now, { city_id, lat, lng, at, for_date, budget, window })
 export const setGrounding = (enabled) => get(GEO_ENDPOINTS.backend.grounding, { enabled }, { cache: false })
 export const source = (label, city_id, for_date) => get(GEO_ENDPOINTS.backend.source, { label, city_id, for_date })
+export const dateDiff = (city_id, from_date, to_date) => get(GEO_ENDPOINTS.backend.dateDiff, { city_id, from_date, to_date })
 export const askSuggestions = (city_id, limit = 4) => get(GEO_ENDPOINTS.backend.askSuggestions, { city_id, limit })
 export const askFaqs = (city_id, lang, limit = 6) => get(GEO_ENDPOINTS.backend.askFaqs, { city_id, lang, limit })
 

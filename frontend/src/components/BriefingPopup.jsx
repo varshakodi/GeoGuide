@@ -3,6 +3,7 @@ import * as api from '../api.js'
 import { t } from '../i18n.js'
 import WeatherIcon, { weatherLabel } from './WeatherIcon.jsx'
 import ReadAloud from './ReadAloud.jsx'
+import { dayLabel, spanLabel, withPrettyDates } from '../dates.js'
 
 // Floating round button (bottom right) that opens the Accessibility Briefing: today's
 // briefing in a compact popup with read-aloud, readable in English, Hindi or Kannada. Content comes from /briefing in the
@@ -29,7 +30,7 @@ export default function BriefingPopup({ ctx, date, lang: pageLang }) {
     const id = ++req.current
     setState({ key, brief: null, error: false })
     api.briefing(city.city_id, lang, date)
-      .then(brief => { if (id === req.current) setState({ key, brief, error: false }) })
+      .then(brief => { if (id === req.current) setState({ key, brief: withPrettyDates(brief), error: false }) })
       .catch(() => { if (id === req.current) setState({ key, brief: null, error: true }) })
   }, [open, key])
 
@@ -55,7 +56,7 @@ export default function BriefingPopup({ ctx, date, lang: pageLang }) {
       <header className="border-b border-white/10 p-5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[10px] font-black uppercase tracking-[.25em] text-lime-300">{TITLE} · {date}</p>
+            <p className="text-[10px] font-black uppercase tracking-[.25em] text-lime-300">{TITLE} · {dayLabel(date)}</p>
             <h2 className="mt-1 truncate text-2xl font-black tracking-[-.04em] text-white">{city.name}</h2>
           </div>
           <button type="button" onClick={hide} aria-label="Close briefing" className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/15 text-white/70 hover:border-lime-300 hover:text-white">✕</button>
@@ -70,7 +71,7 @@ export default function BriefingPopup({ ctx, date, lang: pageLang }) {
       <div data-lenis-prevent className="flex-1 space-y-3 overflow-y-auto overscroll-contain p-5">
         {state.error && <p className="rounded-2xl bg-white/[.05] p-4 text-sm font-bold text-white/75">The briefing could not be loaded from the backend.</p>}
         {!brief && !state.error && <div role="status" className="flex items-center gap-3 rounded-2xl bg-white/[.05] p-4 text-sm font-bold text-white/70"><span className="h-2.5 w-2.5 animate-pulse rounded-full bg-lime-300"/>{t(lang, 'loading')}</div>}
-        {brief?.events_today?.length > 0 && <p className="rounded-2xl border border-[#ff6b57]/40 bg-[#ff6b57]/10 p-3 text-sm font-bold text-orange-50">{brief.events_today.map(e => `${e.name} · ${e.start_date}–${e.end_date}`).join(' · ')}</p>}
+        {brief?.events_today?.length > 0 && <p className="rounded-2xl border border-[#ff6b57]/40 bg-[#ff6b57]/10 p-3 text-sm font-bold text-orange-50">{brief.events_today.map(e => `${e.name} · ${spanLabel(e.start_date, e.end_date)}`).join(' · ')}</p>}
         {brief && ORDER.map(name => {
           const section = brief.sections?.[name]
           if (!section) return null
