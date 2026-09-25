@@ -39,3 +39,9 @@
     justify-self: end;
   }
 }
+
+/* Sideways scrollers (city cards, event chips): a thin bar in the theme's colours instead of
+   the browser's white one. :where() keeps this weaker than a scroller's own colour, so the
+   date strip keeps its lime bar. Phones draw their own overlay bars and hide them. */
+:where(.overflow-x-auto) { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .18) transparent; }
+:where(:root[data-theme="light"] .overflow-x-auto) { scrollbar-color: rgba(15, 23, 20, .2) transparent; }
