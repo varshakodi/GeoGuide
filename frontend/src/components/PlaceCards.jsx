@@ -85,7 +85,7 @@ function PlaceZoom({ open, onClose }) {
 export default function PlaceCards({ places }) {
   const [open, setOpen] = useState(null)
   return <>
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3">
       {places.map(place => <button key={place.poi_id} type="button"
         onClick={e => setOpen({ place, rect: e.currentTarget.getBoundingClientRect() })}
         className="group overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/[.04] text-left transition duration-300 hover:-translate-y-1 hover:border-lime-300/60 hover:shadow-xl hover:shadow-black/40 focus:outline-none focus:ring-2 focus:ring-lime-300">

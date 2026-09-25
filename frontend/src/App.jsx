@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Lenis from 'lenis'
+import { createPortal } from 'react-dom'
 import * as api from './api.js'
 import { t } from './i18n.js'
 import useGeoLocation, { LOCATION_SOURCE, SYNC_STATE } from './hooks/useGeoLocation.js'
@@ -7,6 +8,7 @@ import usePageTranslation from './hooks/usePageTranslation.js'
 import PlaceMap, { isOpenAt } from './components/PlaceMap.jsx'
 import PlaceDeck from './components/PlaceDeck.jsx'
 import PlaceCards from './components/PlaceCards.jsx'
+import { fallBack, photoFor } from './components/placePhotos.js'
 import WeatherIcon, { weatherLabel } from './components/WeatherIcon.jsx'
 import BriefingPopup from './components/BriefingPopup.jsx'
 import ReadAloud from './components/ReadAloud.jsx'
@@ -34,6 +36,10 @@ const CITY_PHOTOS = {
 }
 const newSessionId = () => 'gg-' + (globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2))
 const splitSentences = text => String(text || '').replace(/\s+/g, ' ').match(/[^.!?।]+[.!?।]*/g)?.map(v => v.trim()).filter(Boolean) || []
+
+// Drawers and dialogs render into <body>, so the layout they are opened from (a parent's
+// space-y spacing, for one) can never shift them off the edges of the window.
+const Overlay = ({ children }) => createPortal(children, document.body)
 
 function Icon({ name }) {
   const paths = { globe: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Zm0 0c2.2 2.4 3.2 5.4 3.2 9S14.2 18.6 12 21M12 3c-2.2 2.4-3.2 5.4-3.2 9S9.8 18.6 12 21M4 12h16', chevron: 'm7 10 5 5 5-5', check: 'm5 12.5 4.5 4.5L19 7.5', speaker: 'M5 9.5h3l4-3.5v12l-4-3.5H5v-5ZM16 9.2a4 4 0 0 1 0 5.6', stop: 'M7 7h10v10H7z', refresh: 'M3 12a9 9 0 1 0 2.64-6.36L3 8 M3 3v5h5', sun: 'M12 8.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Z M12 2.5v2 M12 19.5v2 M5.3 5.3l1.4 1.4 M17.3 17.3l1.4 1.4 M2.5 12h2 M19.5 12h2 M5.3 18.7l1.4-1.4 M17.3 6.7l1.4-1.4', moon: 'M19.5 14.6A7.8 7.8 0 1 1 9.4 4.5a6.2 6.2 0 0 0 10.1 10.1Z' }
@@ -105,7 +111,7 @@ function EvidenceDrawer({ open, onClose, cityId, forDate }) {
   }, [open, onClose])
   if (!open) return null
   const claim = open.claim
-  return <>
+  return <Overlay>
     <button type="button" aria-label="Close evidence" onClick={onClose} className="fixed inset-0 z-[69] bg-black/50 backdrop-blur-[2px]"/>
     <aside data-lenis-prevent className="fixed inset-y-0 right-0 z-[70] flex w-full max-w-lg flex-col border-l border-white/15 bg-[#101713] shadow-2xl" aria-label="Evidence">
       <div className="flex items-start justify-between gap-4 border-b border-white/10 p-5">
@@ -124,7 +130,7 @@ function EvidenceDrawer({ open, onClose, cityId, forDate }) {
         <p className="text-[11px] leading-5 text-white/40">Rows are read by key from the provided PS-13 database. The chip label is the same string the model cited.</p>
       </div>
     </aside>
-  </>
+  </Overlay>
 }
 
 function useTypewriterClaims(sections, animate, onComplete) {
@@ -155,22 +161,61 @@ function Reader({ text, lang, onSentence }) {
   return voice ? <button type="button" onClick={play} aria-pressed={speaking} className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[.06] px-4 py-2 text-xs font-black hover:border-lime-300"><Icon name={speaking ? 'stop' : 'speaker'}/>{speaking ? t(lang, 'stop') : t(lang, 'read')}</button> : <span className="text-xs font-bold text-white/50">{t(lang, 'no_voice')}</span>
 }
 
+// Details for a stay or a place, as a side sheet. Every fact is a column of the row it
+// came from, and the source chip at the bottom opens that row.
+const SCORE_WORDS = [[9, 'Exceptional'], [8, 'Very good'], [7, 'Good'], [6, 'Pleasant'], [0, 'Mixed reviews']]
+const scoreWord = score => SCORE_WORDS.find(([min]) => Number(score) >= min)?.[1]
+function DetailFact({ label, value }) {
+  return <div className="min-w-0 rounded-2xl bg-white/[.05] px-3 py-2.5"><dt className="text-[10px] font-black uppercase tracking-wider text-white/45">{label}</dt><dd className="mt-0.5 truncate text-sm font-black">{value}</dd></div>
+}
 function LocationDetailDrawer({ location, onClose }) {
+  const [evidence, setEvidence] = useState(null)
+  useEffect(() => {
+    if (!location) return undefined
+    // The evidence drawer handles its own Escape; this one closes only when it is not open.
+    const onKey = e => { if (e.key === 'Escape' && !evidence) onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [location, onClose, evidence])
+  useEffect(() => { setEvidence(null) }, [location])
   if (!location) return null
   const isHotel = Boolean(location.hotel_id)
   const tags = String(location.tags || '').split(',').map(tag => tag.trim()).filter(Boolean)
   const money = location.entry_cost === '0.00' ? 'Free' : [location.currency, location.entry_cost].filter(Boolean).join(' ')
-  return <aside data-lenis-prevent className="fixed inset-y-0 right-0 z-[70] w-full max-w-md overflow-y-auto border-l border-white/15 bg-[#101713] p-6 shadow-2xl" aria-label="Location details">
-    <div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-black uppercase tracking-[.25em] text-lime-300">{isHotel ? 'Stay details' : 'Place details'}</p><h2 className="mt-2 text-3xl font-black">{location.name}</h2></div><button type="button" onClick={onClose} aria-label="Back to locations" className="rounded-full border border-white/15 px-3 py-2 text-xs font-black">Back</button></div>
-    {location.description && <p className="mt-6 text-sm leading-6 text-white/75">{location.description}</p>}
-    <dl className="mt-6 grid grid-cols-2 gap-3 text-sm">
-      {isHotel ? <><div className="rounded-2xl bg-white/[.05] p-3"><dt className="text-[10px] font-black uppercase text-white/45">Rating</dt><dd className="mt-1 font-black">{location.star_rating ?? '—'} stars</dd></div><div className="rounded-2xl bg-white/[.05] p-3"><dt className="text-[10px] font-black uppercase text-white/45">Guest score</dt><dd className="mt-1 font-black">{location.guest_score ?? '—'} · {location.review_count ?? 0} reviews</dd></div><div className="rounded-2xl bg-white/[.05] p-3"><dt className="text-[10px] font-black uppercase text-white/45">Check-in</dt><dd className="mt-1 font-black">{location.checkin_time || '—'}</dd></div><div className="rounded-2xl bg-white/[.05] p-3"><dt className="text-[10px] font-black uppercase text-white/45">Check-out</dt><dd className="mt-1 font-black">{location.checkout_time || '—'}</dd></div></> : <><div className="rounded-2xl bg-white/[.05] p-3"><dt className="text-[10px] font-black uppercase text-white/45">Today</dt><dd className="mt-1 font-black">{location.closed_today ? 'Closed today' : 'Open today'}</dd></div><div className="rounded-2xl bg-white/[.05] p-3"><dt className="text-[10px] font-black uppercase text-white/45">Hours</dt><dd className="mt-1 font-black">{location.opens_at || '—'} – {location.closes_at || '—'}</dd></div><div className="rounded-2xl bg-white/[.05] p-3"><dt className="text-[10px] font-black uppercase text-white/45">Entry fee</dt><dd className="mt-1 font-black">{money || '—'}</dd></div><div className="rounded-2xl bg-white/[.05] p-3"><dt className="text-[10px] font-black uppercase text-white/45">Visit length</dt><dd className="mt-1 font-black">{location.typical_duration_minutes ?? '—'} min</dd></div></>}
-      <div className="rounded-2xl bg-white/[.05] p-3"><dt className="text-[10px] font-black uppercase text-white/45">Distance</dt><dd className="mt-1 font-black">{location.distance_km ?? location.distance_to_centre_km ?? '—'} km</dd></div><div className="rounded-2xl bg-white/[.05] p-3"><dt className="text-[10px] font-black uppercase text-white/45">Accessibility</dt><dd className="mt-1 font-black">{location.accessibility || '—'}</dd></div>
-    </dl>
-    {location.address_line && <p className="mt-4 rounded-2xl bg-white/[.05] p-3 text-sm font-bold text-white/75">{location.address_line}</p>}
-    {tags.length > 0 && <div className="mt-4 flex flex-wrap gap-2">{tags.map(tag => <span key={tag} className="rounded-full border border-white/15 px-3 py-1 text-[10px] font-black uppercase text-white/65">{tag}</span>)}</div>}
-    {(location.lat || location.lng) && <p className="mt-6 font-mono text-[11px] text-white/40">{location.lat}, {location.lng}</p>}
-  </aside>
+  const stars = Math.max(0, Math.min(5, Number(location.star_rating) || 0))
+  const label = isHotel ? `hotels / ${location.hotel_id}` : `activities_poi / ${location.poi_id}`
+  const maps = location.lat != null && location.lng != null ? `https://www.google.com/maps/search/?api=1&query=${location.lat},${location.lng}` : null
+  return <Overlay>
+    <button type="button" aria-label="Close details" onClick={onClose} className="fixed inset-0 z-[69] bg-black/60 backdrop-blur-sm"/>
+    <aside data-lenis-prevent role="dialog" aria-modal="true" aria-label={location.name} className="fixed inset-y-0 right-0 z-[70] w-full max-w-md overflow-y-auto overscroll-contain border-l border-white/15 bg-[#101713] shadow-2xl">
+      <div className={`relative ${isHotel ? 'h-32 bg-gradient-to-br from-orange-300/25 via-lime-300/10 to-transparent' : 'on-photo h-52'}`}>
+        {!isHotel && <><img src={photoFor(location)} onError={e => fallBack(e, location)} alt="" className="absolute inset-0 h-full w-full object-cover"/><span className="absolute inset-0 bg-gradient-to-t from-[#101713] via-black/20 to-black/10"/></>}
+        {isHotel && <span aria-hidden="true" className="absolute bottom-3 right-6 text-6xl opacity-80">🏨</span>}
+        <button type="button" onClick={onClose} aria-label="Close details" className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-full border border-white/20 bg-black/40 text-lg text-white backdrop-blur hover:border-lime-300">×</button>
+      </div>
+      <div className="space-y-6 px-6 pb-8 pt-2">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[.25em] text-lime-300">{isHotel ? `Stay · ${String(location.property_type || 'hotel').replaceAll('_', ' ')}` : String(location.poi_category || 'Place').replaceAll('_', ' ')}</p>
+          <h2 className="mt-2 text-3xl font-black leading-tight tracking-[-.03em]">{location.name}</h2>
+          {isHotel && stars > 0 && <p className="mt-2 flex items-center gap-2 text-sm font-bold text-white/70"><span aria-hidden="true" className="tracking-[.15em] text-lime-300">{'★'.repeat(stars)}</span>{stars}-star {String(location.property_type || 'hotel').replaceAll('_', ' ')}</p>}
+          {location.address_line && <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-bold text-white/70"><span>⌖ {location.address_line}</span>{maps && <a href={maps} target="_blank" rel="noopener noreferrer" className="text-lime-300 underline decoration-lime-300/40 underline-offset-4 hover:decoration-lime-300">Open in Maps ↗</a>}</p>}
+        </div>
+        {isHotel && location.guest_score != null && <div className="flex items-center gap-4 rounded-2xl border border-white/10 bg-white/[.04] p-4">
+          <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-lime-300 text-xl font-black text-black">{location.guest_score}</span>
+          <div><p className="font-black">{scoreWord(location.guest_score)}</p><p className="text-xs font-bold text-white/55">Guest score out of 10 · {location.review_count ?? 0} reviews</p></div>
+        </div>}
+        <dl className={`grid gap-2 ${isHotel ? 'grid-cols-3' : 'grid-cols-2'}`}>
+          {isHotel
+            ? <><DetailFact label="Check-in" value={location.checkin_time || '—'}/><DetailFact label="Check-out" value={location.checkout_time || '—'}/><DetailFact label="To centre" value={`${location.distance_to_centre_km ?? '—'} km`}/></>
+            : <><DetailFact label="Today" value={location.closed_today ? 'Closed' : `${location.opens_at || '—'}–${location.closes_at || '—'}`}/><DetailFact label="Entry" value={money || '—'}/><DetailFact label="Visit" value={`${location.typical_duration_minutes ?? '—'} min`}/><DetailFact label="Distance" value={`${location.distance_km ?? '—'} km`}/>{location.accessibility && <DetailFact label="Access" value={location.accessibility}/>}</>}
+        </dl>
+        {location.description && <section><h3 className="text-[10px] font-black uppercase tracking-[.2em] text-white/45">{isHotel ? 'About this stay' : 'About this place'}</h3><p className="mt-2 text-sm leading-7 text-white/80">{location.description}</p></section>}
+        {tags.length > 0 && <div className="flex flex-wrap gap-2">{tags.map(tag => <span key={tag} className="rounded-full border border-white/15 px-3 py-1 text-[10px] font-black uppercase text-white/65">{tag}</span>)}</div>}
+        <p className="flex flex-wrap items-center gap-2 border-t border-white/10 pt-4 text-xs font-bold text-white/45">From the PS-13 database<Cite label={label} onOpen={value => setEvidence({ labels: [value] })}/></p>
+      </div>
+    </aside>
+    <EvidenceDrawer open={evidence} onClose={() => setEvidence(null)}/>
+  </Overlay>
 }
 
 function LegacyArriveScreen2({ ctx, places, brief, geo, go, onCity, scene }) {
@@ -197,18 +242,55 @@ function LegacyBriefingScreen({ brief, ctx, date, lang, setDate, loadBriefing, l
   return <div className="space-y-6"><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-[10px] font-black uppercase tracking-[.3em] text-lime-300">Briefing / {date}</p><h1 className="mt-3 text-5xl font-black tracking-[-.07em]">{brief?.city || ctx?.city?.name}</h1></div><div className="flex flex-wrap items-center gap-2"><Reader text={briefingText} lang={lang} onSentence={setActiveSentence}/><button translate="no" type="button" onClick={toggleGrounding} aria-pressed={grounding} className={`rounded-full border px-4 py-2 text-xs font-black ${grounding ? 'border-emerald-300/40 text-emerald-300' : 'border-amber-300/40 text-amber-200'}`}>{grounding ? 'Grounding on' : 'Grounding off'}</button></div></div>{activeSentence >= 0 && <div className="rounded-2xl border border-orange-200/25 bg-orange-300/10 p-4"><p className="text-[10px] font-black uppercase tracking-[.2em] text-orange-200">Now reading</p><p className="mt-2 text-sm font-bold leading-6 text-orange-50">{splitSentences(briefingText)[activeSentence]}</p></div>}<div className="glass rounded-3xl p-4"><DateScrubber lang={lang} date={date} range={ctx?.date_range} events={brief?.events_today || []} onChange={value => { setDate(value); loadBriefing(value) }}/></div>{loading && !brief ? <Loading/> : brief ? <>{brief.events_today?.length ? <div className="rounded-2xl border border-[#ff6b57]/40 bg-[#ff6b57]/10 p-4 text-sm font-bold text-orange-50">{brief.events_today.map(e => `${e.name} · ${e.start_date}–${e.end_date}`).join(' · ')}</div> : <div className="rounded-2xl border border-white/10 bg-white/[.04] p-4 text-sm font-bold text-white/65">No events on your dates.</div>}{SECTIONS.map(key => { const section = brief.sections?.[key]; if (!section) return null; if (section.type !== 'answer') return <article key={key} className="rounded-3xl border-l-2 border-rose-300 bg-rose-400/10 p-5"><h2 className="text-lg font-black">{t(lang, key)}</h2><p className="mt-3 text-sm text-white/75">{section.message}</p></article>; const text = section.claims.map(c => c.text).join(' '); const sources = [...new Set(section.claims.flatMap(c => c.source_labels || []))]; return <article key={key} className="glass rounded-3xl p-5"><h2 className="text-lg font-black">{t(lang, key)}</h2><p className="mt-3 max-w-3xl text-sm leading-7 text-white/80">{text}</p><SourceReceipt sources={sources}/></article> })}</> : <div className="rounded-3xl border border-white/10 p-6 text-white/60">No briefing loaded yet.</div>}</div>
 }
 
-function NearbyScreen({ places, loading, lang }) {
-  const [selectedLocation, setSelectedLocation] = useState(null)
-  return <div className="space-y-7"><div><p className="text-[10px] font-black uppercase tracking-[.3em] text-lime-300">Nearby</p><h1 className="mt-3 text-5xl font-black tracking-[-.07em]">Places to visit.</h1>{places && <p className="mt-2 text-sm font-bold text-white/60">{places.pois?.length || 0} places nearby, nearest first</p>}</div>{!places ? <Loading/> : <><section><PlaceCards places={places?.pois || []}/></section><section><h2 className="mb-3 text-2xl font-black">Stay nearby</h2><div className="grid gap-3 md:grid-cols-2">{(places?.hotels || []).map(h => <button type="button" key={h.hotel_id} onClick={() => setSelectedLocation(h)} className="grid grid-cols-[auto_1fr] gap-4 rounded-3xl border border-white/10 bg-white/[.04] p-4 text-left hover:bg-white/[.08]"><div className="grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-orange-300/40 to-slate-950 text-2xl">🏨</div><div><h3 className="font-black">{h.name}</h3><p className="mt-2 text-xs font-bold text-white/65">★ {h.star_rating ?? h.guest_score ?? '—'} · ⌖ {h.distance_to_centre_km} km from centre</p></div></button>)}</div></section></>}<LocationDetailDrawer location={selectedLocation} onClose={() => setSelectedLocation(null)}/></div>
+// Smooth scrolling owns the page, so jumps to a section go through it; without it (reduced
+// motion) the browser scrolls. The offset clears the sticky header.
+const smoothScroll = { lenis: null }
+function scrollToElement(el) {
+  if (!el) return
+  if (smoothScroll.lenis) smoothScroll.lenis.scrollTo(el, { offset: -110 })
+  else el.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
+// Places to visit come first, since they are what the MVP asks for. Places to stay sit
+// beside them on wide screens, staying in view while the grid scrolls, and are one tap
+// away on a phone.
+function NearbyScreen({ places, loading, lang }) {
+  const [selectedLocation, setSelectedLocation] = useState(null)
+  const pois = places?.pois || []
+  const hotels = places?.hotels || []
+  const toStays = () => scrollToElement(document.getElementById('stays'))
+  return <div className="space-y-7">
+    <div>
+      <p className="text-[10px] font-black uppercase tracking-[.3em] text-lime-300">Nearby</p>
+      <h1 className="mt-3 text-5xl font-black tracking-[-.07em]">Places to visit.</h1>
+      {places && <div className="mt-3 flex flex-wrap items-center gap-2">
+        <p className="text-sm font-bold text-white/60">{pois.length} places nearby, nearest first</p>
+        {hotels.length > 0 && <button type="button" onClick={toStays} className="rounded-full border border-white/15 bg-white/[.05] px-3 py-1.5 text-xs font-black text-white hover:border-lime-300 lg:hidden">{hotels.length} places to stay ↓</button>}
+      </div>}
+    </div>
+    {!places ? <Loading/> : <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
+      <section aria-label="Places to visit"><PlaceCards places={pois}/></section>
+      <aside id="stays" aria-labelledby="stays-heading" data-lenis-prevent className="scroll-mt-32 rounded-3xl border border-white/10 bg-white/[.04] p-4 lg:sticky lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto" style={{ top: 'calc(var(--header-h, 74px) + 16px)' }}>
+        <h2 id="stays-heading" className="pr-10 text-xl font-black">Stay nearby</h2><p className="mt-0.5 text-xs font-bold text-white/50">{hotels.length} stays · best rated first</p>
+        {hotels.length === 0
+          ? <p className="mt-3 text-sm text-white/60">No stays listed for this city.</p>
+          : <div className="mt-3 space-y-2">{hotels.map(h => <button key={h.hotel_id} type="button" onClick={() => setSelectedLocation(h)} className="flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-white/[.05] p-3 text-left transition hover:border-lime-300/60 hover:bg-white/[.08] focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-300">
+              <span aria-hidden="true" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-orange-300/40 to-slate-950 text-lg">🏨</span>
+              <span className="min-w-0 flex-1"><span className="block font-black leading-snug">{h.name}</span><span className="mt-0.5 block text-xs font-bold text-white/60">★ {h.star_rating ?? '—'}{h.guest_score != null ? ` · ${h.guest_score}/10` : ''} · {h.distance_to_centre_km} km from centre</span></span>
+              <span aria-hidden="true" className="text-lg text-white/40">›</span>
+            </button>)}</div>}
+      </aside>
+    </div>}
+    <LocationDetailDrawer location={selectedLocation} onClose={() => setSelectedLocation(null)}/>
+  </div>
+}
 function LegacyNearbyScreen({ places, loading, lang }) { return <div /> }
 
 // A citation label as a record reference: the table dimmed, the row id or chunk bright,
 // the field in brackets. Labels that name a query (row ids, city passages, KB chunks, POI
 // facts) open the evidence drawer; field-style reasons such as activities_poi.closes_at
 // are shown but not clickable, since they name a column rather than a row.
-const RECORD_TABLES = /^(events_festivals|weather_daily|safety_advisories|activities_poi|cities)$/
+const RECORD_TABLES = /^(events_festivals|weather_daily|safety_advisories|activities_poi|hotels|cities)$/
 function parseLabel(label) {
   const text = String(label || '')
   const m = text.match(/^(.*?)\s*\(([a-z_/]+)\)$/)
@@ -348,7 +430,7 @@ function NewChatModal({ open, onConfirm, onCancel }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [open, onCancel])
   if (!open) return null
-  return <div className="fixed inset-0 z-[80] grid place-items-center bg-black/60 p-4" onClick={onCancel}>
+  return <Overlay><div className="fixed inset-0 z-[80] grid place-items-center bg-black/60 p-4" onClick={onCancel}>
     <div role="dialog" aria-modal="true" aria-labelledby="new-chat-title" onClick={event => event.stopPropagation()} className="w-full max-w-sm rounded-2xl border border-slate-700 bg-slate-900/90 p-6 shadow-2xl backdrop-blur-md">
       <h2 id="new-chat-title" className="text-lg font-semibold text-white">Start a new chat</h2>
       <p className="mt-3 text-sm leading-relaxed text-white/80">Old chats are going to be cleared. Do you wish to proceed?</p>
@@ -357,7 +439,7 @@ function NewChatModal({ open, onConfirm, onCancel }) {
         <button type="button" onClick={onConfirm} className="rounded-full bg-lime-300 px-5 py-2 text-sm font-semibold text-black hover:bg-white focus:outline-none focus:ring-2 focus:ring-lime-300">Yes</button>
       </div>
     </div>
-  </div>
+  </div></Overlay>
 }
 
 // Chat indices grouped into question-and-answer turns, newest turn first; while an answer
@@ -464,7 +546,7 @@ export default function App() {
   useEffect(() => { let asked = true; try { asked = localStorage.getItem('geoguide-location-asked') === '1'; localStorage.setItem('geoguide-location-asked', '1') } catch { /* storage blocked */ } const request = () => geo.requestLocation(); if (!asked) { request(); return } navigator.permissions?.query({ name: 'geolocation' }).then(state => { if (state.state === 'granted') request() }).catch(() => {}) }, []) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (ctx?.city?.city_id) loadAskSuggestions(ctx.city.city_id, lang) }, [ctx?.city?.city_id, lang, loadAskSuggestions])
   useEffect(() => { if (tab !== 'now' || !ctx) return; const timer = setTimeout(loadNow, 300); return () => clearTimeout(timer) }, [tab, ctx, time, budget, windowMinutes, loadNow])
-  useEffect(() => { if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return; const lenis = new Lenis({ duration: 1.05, smoothWheel: true, allowNestedScroll: true }); let id; const raf = value => { lenis.raf(value); id = requestAnimationFrame(raf) }; id = requestAnimationFrame(raf); return () => { cancelAnimationFrame(id); lenis.destroy() } }, [])
+  useEffect(() => { if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return; const lenis = new Lenis({ duration: 1.05, smoothWheel: true, allowNestedScroll: true }); smoothScroll.lenis = lenis; let id; const raf = value => { lenis.raf(value); id = requestAnimationFrame(raf) }; id = requestAnimationFrame(raf); return () => { cancelAnimationFrame(id); smoothScroll.lenis = null; lenis.destroy() } }, [])
   const go = async id => { setTab(id); window.scrollTo({ top: 0, behavior: 'smooth' }); if (id === 'nearby' && !places) await loadNearby(); if (id === 'now') await loadNow() }
   // The date a shift came from, so the briefing can show what moved. Kept per city.
   const [shift, setShift] = useState(null)
