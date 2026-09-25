@@ -93,9 +93,12 @@
 :root[data-theme="light"] .hero-wash {
   display: block;
   background:
-    linear-gradient(to right, rgba(242, 244, 238, .62) 0%, rgba(242, 244, 238, .5) 34%, rgba(242, 244, 238, .16) 62%, rgba(242, 244, 238, .04) 100%),
-    linear-gradient(to bottom, rgba(242, 244, 238, .3) 0%, rgba(242, 244, 238, 0) 16%, rgba(242, 244, 238, 0) 78%, var(--page) 100%);
+    linear-gradient(to right, rgba(242, 244, 238, .3) 0%, rgba(242, 244, 238, .18) 34%, rgba(242, 244, 238, .04) 58%, rgba(242, 244, 238, 0) 100%),
+    linear-gradient(to bottom, rgba(242, 244, 238, .15) 0%, rgba(242, 244, 238, 0) 12%, rgba(242, 244, 238, 0) 88%, var(--page) 100%);
 }
+/* The shared bottom fade runs from halfway down; in daylight it only feathers the last
+   strip into the page, so the lower half of the photo stays visible. */
+:root[data-theme="light"] .hero-fade { background: linear-gradient(to bottom, transparent 86%, var(--page) 100%); }
 :root[data-theme="light"] .hero-photo {
   -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 7%, #000 93%, transparent 100%), linear-gradient(to bottom, transparent 0%, #000 6%, #000 86%, transparent 100%);
   -webkit-mask-composite: source-in;
@@ -108,8 +111,8 @@
 :root[data-theme="light"] .on-photo.hero-copy { position: relative; isolation: isolate; }
 :root[data-theme="light"] .on-photo.hero-copy::before {
   content: ""; position: absolute; z-index: -1; pointer-events: none;
-  inset: -80px -24px -40px -64px;
-  background: radial-gradient(ellipse 66% 64% at 36% 48%, rgba(242, 244, 238, .92) 0%, rgba(242, 244, 238, .88) 68%, rgba(242, 244, 238, 0) 100%);
+  inset: -40px -24px -24px -48px;
+  background: radial-gradient(ellipse 58% 52% at 32% 50%, rgba(242, 244, 238, .78) 0%, rgba(242, 244, 238, .55) 55%, rgba(242, 244, 238, 0) 100%);
 }
 :root[data-theme="light"] .on-photo.hero-copy :is(.text-white, .text-white\/90, .text-white\/85) { color: var(--ink); }
 :root[data-theme="light"] .on-photo.hero-copy .text-lime-300 { color: #243c0b; }   /* deeper than --lime-ink: small text over a photo */
