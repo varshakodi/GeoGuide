@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Lenis from 'lenis'
+import { createPortal } from 'react-dom'
 import * as api from './api.js'
 import { t } from './i18n.js'
 import useGeoLocation, { LOCATION_SOURCE, SYNC_STATE } from './hooks/useGeoLocation.js'
@@ -35,6 +36,10 @@ const CITY_PHOTOS = {
 }
 const newSessionId = () => 'gg-' + (globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2))
 const splitSentences = text => String(text || '').replace(/\s+/g, ' ').match(/[^.!?।]+[.!?।]*/g)?.map(v => v.trim()).filter(Boolean) || []
+
+// Drawers and dialogs render into <body>, so the layout they are opened from (a parent's
+// space-y spacing, for one) can never shift them off the edges of the window.
+const Overlay = ({ children }) => createPortal(children, document.body)
 
 function Icon({ name }) {
   const paths = { globe: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Zm0 0c2.2 2.4 3.2 5.4 3.2 9S14.2 18.6 12 21M12 3c-2.2 2.4-3.2 5.4-3.2 9S9.8 18.6 12 21M4 12h16', chevron: 'm7 10 5 5 5-5', check: 'm5 12.5 4.5 4.5L19 7.5', speaker: 'M5 9.5h3l4-3.5v12l-4-3.5H5v-5ZM16 9.2a4 4 0 0 1 0 5.6', stop: 'M7 7h10v10H7z', refresh: 'M3 12a9 9 0 1 0 2.64-6.36L3 8 M3 3v5h5', sun: 'M12 8.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Z M12 2.5v2 M12 19.5v2 M5.3 5.3l1.4 1.4 M17.3 17.3l1.4 1.4 M2.5 12h2 M19.5 12h2 M5.3 18.7l1.4-1.4 M17.3 6.7l1.4-1.4', moon: 'M19.5 14.6A7.8 7.8 0 1 1 9.4 4.5a6.2 6.2 0 0 0 10.1 10.1Z' }
@@ -106,7 +111,7 @@ function EvidenceDrawer({ open, onClose, cityId, forDate }) {
   }, [open, onClose])
   if (!open) return null
   const claim = open.claim
-  return <>
+  return <Overlay>
     <button type="button" aria-label="Close evidence" onClick={onClose} className="fixed inset-0 z-[69] bg-black/50 backdrop-blur-[2px]"/>
     <aside data-lenis-prevent className="fixed inset-y-0 right-0 z-[70] flex w-full max-w-lg flex-col border-l border-white/15 bg-[#101713] shadow-2xl" aria-label="Evidence">
       <div className="flex items-start justify-between gap-4 border-b border-white/10 p-5">
@@ -125,7 +130,7 @@ function EvidenceDrawer({ open, onClose, cityId, forDate }) {
         <p className="text-[11px] leading-5 text-white/40">Rows are read by key from the provided PS-13 database. The chip label is the same string the model cited.</p>
       </div>
     </aside>
-  </>
+  </Overlay>
 }
 
 function useTypewriterClaims(sections, animate, onComplete) {
@@ -180,7 +185,7 @@ function LocationDetailDrawer({ location, onClose }) {
   const stars = Math.max(0, Math.min(5, Number(location.star_rating) || 0))
   const label = isHotel ? `hotels / ${location.hotel_id}` : `activities_poi / ${location.poi_id}`
   const maps = location.lat != null && location.lng != null ? `https://www.google.com/maps/search/?api=1&query=${location.lat},${location.lng}` : null
-  return <>
+  return <Overlay>
     <button type="button" aria-label="Close details" onClick={onClose} className="fixed inset-0 z-[69] bg-black/60 backdrop-blur-sm"/>
     <aside data-lenis-prevent role="dialog" aria-modal="true" aria-label={location.name} className="fixed inset-y-0 right-0 z-[70] w-full max-w-md overflow-y-auto overscroll-contain border-l border-white/15 bg-[#101713] shadow-2xl">
       <div className={`relative ${isHotel ? 'h-32 bg-gradient-to-br from-orange-300/25 via-lime-300/10 to-transparent' : 'on-photo h-52'}`}>
@@ -210,7 +215,7 @@ function LocationDetailDrawer({ location, onClose }) {
       </div>
     </aside>
     <EvidenceDrawer open={evidence} onClose={() => setEvidence(null)}/>
-  </>
+  </Overlay>
 }
 
 function LegacyArriveScreen2({ ctx, places, brief, geo, go, onCity, scene }) {
@@ -425,7 +430,7 @@ function NewChatModal({ open, onConfirm, onCancel }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [open, onCancel])
   if (!open) return null
-  return <div className="fixed inset-0 z-[80] grid place-items-center bg-black/60 p-4" onClick={onCancel}>
+  return <Overlay><div className="fixed inset-0 z-[80] grid place-items-center bg-black/60 p-4" onClick={onCancel}>
     <div role="dialog" aria-modal="true" aria-labelledby="new-chat-title" onClick={event => event.stopPropagation()} className="w-full max-w-sm rounded-2xl border border-slate-700 bg-slate-900/90 p-6 shadow-2xl backdrop-blur-md">
       <h2 id="new-chat-title" className="text-lg font-semibold text-white">Start a new chat</h2>
       <p className="mt-3 text-sm leading-relaxed text-white/80">Old chats are going to be cleared. Do you wish to proceed?</p>
@@ -434,7 +439,7 @@ function NewChatModal({ open, onConfirm, onCancel }) {
         <button type="button" onClick={onConfirm} className="rounded-full bg-lime-300 px-5 py-2 text-sm font-semibold text-black hover:bg-white focus:outline-none focus:ring-2 focus:ring-lime-300">Yes</button>
       </div>
     </div>
-  </div>
+  </div></Overlay>
 }
 
 // Chat indices grouped into question-and-answer turns, newest turn first; while an answer
