@@ -1,1274 +1,227 @@
-# 🌍 GeoGuide — Location-Aware AI Place Companion
+# GeoGuide
 
-> **A travel companion that doesn't just tell you about a place — it proves where every fact came from.**
+**A location-aware travel companion where every AI sentence links to the record it came from.**
 
-**Team VVinners · BMS College of Engineering**
-**KogniVera Hackathon 2026 · PS-13 — GeoGuide: Location-Aware AI Place Companion**
+GeoGuide works out where you are and which date you're travelling, then briefs you on that place for that date: weather, events, safety, culture, history and top attractions. It shows what's nearby, suggests what fits your next 30 to 90 minutes, and answers questions. Every sentence carries a citation you can tap to see the exact database row or guide passage behind it. When the data can't support an answer, GeoGuide says so instead of guessing.
 
----
+Built by **Team VVinners** (BMS College of Engineering) for the **KogniVera Hackathon 2026**, problem statement **PS-13: GeoGuide, Location-Aware AI Place Companion**, including the mandatory **Date-Shift Briefing** enhancement.
 
-## 1. 👥 Team & Problem Statement
-
-### Team VVinners
-
-| Member                      | Responsibility                     |
-| --------------------------- | ---------------------------------- |
-| **Vamika A Bhat**           | AI & RAG pipeline, grounding guard |
-| **Vishnu Mashalkar**        | Backend, API & orchestration       |
-| **Vachana M H**             | Frontend & UI/UX                   |
-| **Varsha Kusumadhara Kodi** | Data, embeddings & conformance     |
-
-### Problem Statement
-
-Travel information is fragmented across maps, search engines, blogs, booking platforms and AI assistants.
-
-A traveller arriving in a new city needs answers to questions such as:
-
-* Where am I?
-* What is important about this place?
-* What's happening today?
-* What can I do nearby right now?
-* What should I know before visiting?
-* Can I ask follow-up questions?
-* Can I trust what an AI assistant tells me?
-
-Traditional travel applications can provide information, but an AI assistant introduces another problem:
-
-> **How does the traveller know whether the answer is actually supported by data?**
-
-GeoGuide addresses both problems by combining **location awareness, date-aware context, structured data, retrieval-augmented generation and visible provenance**.
-
-### Our Core Principle
-
-> **If GeoGuide cannot ground an answer in the provided data, it does not answer.**
-
-Instead of hiding provenance inside the backend, GeoGuide makes the source of factual claims visible directly in the user interface.
+![Briefing for Bengaluru, shifted to the festival week](docs/screenshots/briefing.jpg)
 
 ---
 
-# 2. 🏗️ Architecture
+## Contents
 
-GeoGuide is an end-to-end location-aware AI system built around a grounded RAG pipeline.
+- [What it does](#what-it-does)
+- [Screens](#screens)
+- [How it works](#how-it-works)
+- [Keeping the AI grounded](#keeping-the-ai-grounded)
+- [Date-Shift Briefing](#date-shift-briefing)
+- [Tech stack](#tech-stack)
+- [Run it locally](#run-it-locally)
+- [Demo walkthrough](#demo-walkthrough)
+- [Tests and evaluation](#tests-and-evaluation)
+- [Project structure](#project-structure)
+- [Limits](#limits)
+- [Team](#team)
+- [Credits](#credits)
 
-```text
-┌─────────────────────────────────────────────┐
-│                 React + Vite                 │
-│                                              │
-│ Location · Date · Language · Briefing       │
-│ Nearby · Right Now · Ask · TTS              │
-└──────────────────────┬──────────────────────┘
-                       │
-                       ▼
-┌─────────────────────────────────────────────┐
-│                  FastAPI                     │
-│                                              │
-│ Context / Briefing / Nearby / Right Now     │
-│ Ask / Session State / Date & Season Logic   │
-└───────────────┬─────────────────────────────┘
-                │
-        ┌───────┴─────────┐
-        ▼                 ▼
-┌───────────────┐  ┌────────────────────────┐
-│   PS-13.db    │  │       ChromaDB         │
-│               │  │                        │
-│ Structured    │  │ place_kb                │
-│ source of     │  │ poi_facts_kb            │
-│ truth         │  │ embeddings + metadata   │
-└───────┬───────┘  └────────────┬───────────┘
-        │                       │
-        └──────────┬────────────┘
-                   ▼
-          ┌─────────────────┐
-          │ Relevance Gate  │
-          └────────┬────────┘
-                   │
-          ┌────────┴────────┐
-          │                 │
-       Relevant          Not relevant
-          │                 │
-          ▼                 ▼
-     ┌──────────┐       ┌─────────┐
-     │  Gemini  │       │ REFUSE  │
-     └────┬─────┘       └─────────┘
-          │
-          ▼
-┌─────────────────────────────┐
-│ Citation / Claim Validation │
-│                             │
-│ Cited → Show                │
-│ Uncited → Drop              │
-│ Nothing left → Refuse       │
-└──────────────┬──────────────┘
-               │
-               ▼
-       Grounded response
-       + source chips
+## What it does
+
+| Feature | What you get |
+|---|---|
+| **Arrive** | Your location matched to the nearest of 60 cities, today's weather, and nearby places as photo cards ("Closed now · opens 06:00") |
+| **Briefing** | Six cards (what to wear, what's on, safety, history, culture and etiquette, top attractions), each sentence with a numbered citation |
+| **Date-Shift** | Pick any date in the dataset and events, weather, season, advisories and closures are recomputed for it. A "What changed" panel lists the differences |
+| **Evidence drawer** | Tap any citation to see the query, the rows it returned, and the cited field highlighted |
+| **Nearby** | Places to visit, nearest first, with places to stay in a column beside them and a detail sheet for each |
+| **Right now** | What fits the next 30, 60 or 90 minutes within your budget, with a reason (and a citation) for every pick, on a radar map |
+| **Ask** | A chat that answers from the city guide with citations, or refuses: live fares, bookings and made-up places are declined |
+| **Languages** | English, Hindi and the city's own language (Kannada for Bengaluru), translated with Sarvam AI |
+| **Accessibility** | Read aloud (browser speech), an accessible briefing view, light and dark themes, phone layout |
+| **Offline** | Every response is kept in the browser. If the connection drops, an offline bar appears and saved briefings and places still load |
+
+## Screens
+
+| | |
+|---|---|
+| ![Arrive](docs/screenshots/arrive.jpg) **Arrive:** location, weather and nearby places | ![What changed](docs/screenshots/what-changed.jpg) **What changed:** Sat 26 Sep → Sat 17 Oct, each line cited |
+| ![Evidence drawer](docs/screenshots/evidence.jpg) **Evidence:** both days' weather rows behind "Rain: 5.4 mm → 1 mm" | ![Briefing cards](docs/screenshots/briefing-cards.jpg) **Briefing cards:** key facts, then cited sentences |
+| ![Right now](docs/screenshots/right-now.jpg) **Right now:** picks that fit the window; the selected one glows on the radar | ![Ask](docs/screenshots/ask.jpg) **Ask:** an answer with numbered citations |
+| ![Nearby](docs/screenshots/nearby.jpg) **Nearby:** places first, stays beside them | |
+
+## How it works
+
+```mermaid
+flowchart LR
+    A[Browser location<br/>or a city card] --> B[React app]
+    B -->|/context /briefing /ask /now /date-diff| C[FastAPI backend]
+    C --> D[(PS-13 SQLite<br/>read-only)]
+    C --> E[(ChromaDB index<br/>3,173 guide passages<br/>+ 900 place facts)]
+    E --> F[Gemini<br/>writes from retrieved passages only]
+    F --> G[Citation check<br/>uncited sentences dropped]
+    D --> H[Date facts, What changed,<br/>Right now ranking<br/>no AI involved]
+    G --> B
+    H --> B
+    B -->|tap a citation: /source| C
 ```
 
-### Request Flow
-
-A typical grounded question follows this path:
-
-```text
-User question
-     ↓
-City-aware retrieval
-     ↓
-Relevant evidence?
-     ↓
-   YES ──────────────── NO
-    │                    │
-    ▼                    ▼
-Gemini generation      REFUSE
-    │
-    ▼
-Citation validation
-    │
-    ├── Supported claims → Display
-    │
-    └── Unsupported claims → Drop
-```
-
-The LLM is therefore **not directly trusted with an unrestricted question**.
-
-The system first retrieves evidence, checks relevance, generates only from the retrieved context, and validates citations before displaying the answer.
-
----
-
-# 3. 🤖 AI Features
-
-## 3.1 Grounded Six-Part Briefing
-
-GeoGuide generates a structured briefing containing:
-
-1. 🏛️ **History**
-2. 📍 **Top Attractions**
-3. 🎉 **What's On**
-4. ☁️ **Weather-Aware Tips**
-5. 🙏 **Culture & Etiquette**
-6. ⚠️ **Safety**
-
-Every factual claim displayed to the user carries a visible source chip.
-
-For example:
-
-```text
-Remove footwear at religious sites.
-
-✓ KV Guide / Bengaluru / etiquette
-```
-
-or:
-
-```text
-No festivals are scheduled for this date.
-
-✓ events_festivals / query result
-```
-
-Uncited generated claims are removed before the answer reaches the UI.
-
----
-
-## 3.2 Retrieval-Augmented Generation
-
-The main knowledge base consists of:
-
-* `place_kb`
-* `poi_facts_kb`
-
-These are embedded and indexed in ChromaDB.
-
-Retrieval is **city-filtered** so that information from one city cannot accidentally leak into another city's answer.
-
-The retrieval pipeline is:
-
-```text
-Question
-   ↓
-Embedding
-   ↓
-ChromaDB
-   ↓
-city_id filter
-   ↓
-Relevant passages
-   ↓
-Relevance gate
-   ↓
-Gemini
-   ↓
-Citation validation
-   ↓
-Answer / Refusal
-```
-
-The current index contains approximately:
-
-```text
-3,173 KB windows
-+
-900 POI facts
-```
-
----
-
-## 3.3 Three-Layer Grounding Guard
-
-GeoGuide uses multiple protections against unsupported answers.
-
-### Layer 1 — Relevance Gate
-
-If retrieval does not produce sufficiently relevant information:
-
-```text
-No sufficient evidence
-        ↓
-LLM is NOT called
-        ↓
-Refusal
-```
-
-This prevents the model from filling missing information from its general knowledge.
-
-### Layer 2 — Generation Constraint
-
-When the LLM is called, it receives retrieved context and is instructed to:
-
-* use only retrieved passages
-* attach citations
-* omit unsupported claims
-* return insufficient information when evidence is missing
-
-### Layer 3 — Citation Check
-
-After generation:
-
-```text
-Generated answer
-       ↓
-Check claims
-       ↓
-Has source?
-   ┌───┴───┐
-  YES      NO
-   │        │
- Show     Drop
-```
-
-If all claims are removed, GeoGuide refuses instead of displaying an unsupported answer.
-
----
-
-# 4. 📅 Date-Shift Briefing
-
-The mandatory PS-13 enhancement is **Date-Shift Briefing**.
-
-GeoGuide is not restricted to today's context.
-
-The user can move the date across the available dataset, and the application recomputes date-sensitive information.
-
-```text
-Selected city
-     +
-Selected date
-     ↓
-events_festivals
-weather_daily
-safety_advisories
-activities_poi
-     ↓
-New contextual briefing
-```
-
-This can change:
-
-* Events and festivals
-* Weather-aware advice
-* Applicable safety information
-* Relevant activities
-* Opening information
-* Seasonal framing
-
-### Example
-
-On:
-
-```text
-24 September
-```
-
-Bengaluru can correctly report:
-
-> **Nothing is scheduled in Bengaluru on this date.**
-
-Move to:
-
-```text
-17 October
-```
-
-and the corresponding event appears with its source row.
-
-Move to an empty date again and GeoGuide reports the absence honestly.
-
-### No Fabricated Events
-
-A date with no matching event does **not** cause the LLM to invent a festival.
-
-```text
-No matching event
-      ↓
-"Nothing is scheduled."
-```
-
-This is a deliberate part of the grounding design.
-
----
-
-# 5. ⚡ Right Now — Contextual Action Engine
-
-GeoGuide does not only describe a city.
-
-It answers:
-
-> **"What can I actually do in the next 90 minutes?"**
-
-The **Contextual Action Engine (CAE)** is deterministic and does not use the LLM to decide which activity to recommend.
-
-It considers structured information such as:
-
-* Current location
-* Distance
-* Opening hours
-* Time required
-* Entry cost
-* Budget
-* Activity type
-* Season
-* Weather-related context
-
-Example:
-
-```text
-RIGHT NOW
-Next 90 minutes
-
-1. Bengaluru Bazaar
-   Open till 21:00
-   1.4 km
-   ~90 min
-   ₹350
-
-   Why:
-   ✓ Open now
-   ✓ Fits time
-   ✓ Matches activity preference
-```
-
-Every recommendation exposes **data-derived reasons**.
-
-The important distinction is:
-
-> **The recommendation is calculated from structured data — it is not an LLM-generated guess.**
-
----
-
-# 6. 📍 Nearby Places & Hotels
-
-GeoGuide provides grounded nearby recommendations using the supplied dataset.
-
-### Places
-
-Places come from:
-
-```text
-activities_poi
-```
-
-and are resolved using geographic distance and relevant structured fields.
-
-### Hotels
-
-Hotels come from:
-
-```text
-hotels
-```
-
-and are surfaced using the available guest score and contextual information.
-
-Each item can expose information such as:
-
-* Distance
-* Opening hours
-* Entry cost
-* Currency
-* Rating / guest score
-* Relevant recommendation reasons
-
----
-
-# 7. 💬 Grounded Follow-Up Q&A
-
-After receiving the briefing, users can continue the conversation naturally.
-
-Example:
-
-```text
-User:
-Anything I should know before Bengaluru Bazaar?
-
-GeoGuide:
-[grounded response]
-
-✓ Source
-LOW CONFIDENCE / Verify locally
-```
-
-Follow-up questions are retrieved and grounded **per turn**.
-
-Conversation context may help resolve references such as:
-
-```text
-"there"
-"that place"
-"it"
-```
-
-but conversation history does not replace source retrieval.
-
-Each factual answer still needs supporting evidence.
-
----
-
-# 8. 🛑 Refusal Instead of Guessing
-
-One of GeoGuide's core behaviours is knowing when **not** to answer.
-
-For example:
-
-```text
-User:
-How much is a cab to the airport right now?
-```
-
-GeoGuide:
-
-```text
-No live fares in the grounded data,
-so I won't guess.
-
-✕ No grounded data
-```
-
-GeoGuide refuses unsupported questions including:
-
-* Live information not present in the dataset
-* Unsupported exchange rates
-* Booking/payment requests
-* Made-up landmarks
-* Facts outside the retrieved knowledge
-* Adversarial/prompt-injection style questions
-
-The goal is not to produce an answer at any cost.
-
-The goal is to produce an answer **only when the system can support it**.
-
----
-
-# 9. 🔌 Grounding-Off Proof
-
-GeoGuide includes an explicit demonstration of its grounding dependency.
-
-### Grounding ON
-
-```text
-Question
-   ↓
-Retrieve evidence
-   ↓
-Generate grounded answer
-   ↓
-Source
-```
-
-### Grounding OFF
-
-```text
-Question
-   ↓
-No trusted evidence
-   ↓
-REFUSE
-```
-
-Turning grounding off causes questions to refuse rather than silently fall back to the model's general memory.
-
-This provides a direct proof that the application's answers depend on the grounding layer.
-
----
-
-# 10. 🌐 Multilingual & Voice
-
-GeoGuide supports:
-
-* 🇬🇧 English
-* 🇮🇳 Hindi
-* 🟡 Kannada
-
-The underlying grounded information remains the same.
-
-Only the presentation language changes.
-
-```text
-PS-13 Data
-     ↓
-Same grounded facts
-     ↓
-English / Hindi / Kannada
-     ↓
-Text / TTS
-```
-
-### Read Aloud
-
-The application uses browser-supported text-to-speech where available.
-
-Voice availability depends on the device's installed browser voices.
-
----
-
-# 11. 📦 Offline Fallback
-
-GeoGuide includes a fallback for situations where the LLM is unreachable.
-
-Instead of inventing content, the application can display the grounded source passages directly, with an indication that the fallback is being used.
-
-```text
-Gemini available
-      ↓
-Grounded generated briefing
-
-Gemini unavailable
-      ↓
-Grounded source passages
-      ↓
-Still cited
-```
-
-This preserves the central grounding principle even when generation is unavailable.
-
----
-
-# 12. 🗄️ Data Model
-
-The provided **PS-13.db remains the source of truth**.
-
-GeoGuide uses the supplied tables without replacing the underlying data model.
-
-### Core Tables
-
-| Table               | Purpose                                      |
-| ------------------- | -------------------------------------------- |
-| `cities`            | Location, city identity, season and language |
-| `place_kb`          | Main RAG knowledge base                      |
-| `poi_facts_kb`      | Grounded POI facts and confidence            |
-| `activities_poi`    | Nearby places, coordinates, hours and cost   |
-| `events_festivals`  | Date-aware events and festivals              |
-| `weather_daily`     | Weather and weather-aware advice             |
-| `safety_advisories` | Safety information                           |
-| `hotels`            | Nearby accommodation                         |
-| `languages`         | Language and TTS support                     |
-| `currencies`        | Currency-related structured information      |
-| `countries`         | Country relationships                        |
-
-### Supporting Infrastructure
-
-GeoGuide adds supporting infrastructure beside the supplied database:
-
-```text
-PS-13.db
-   │
-   ├── Structured queries
-   │
-   ├── ChromaDB vector index
-   │
-   ├── Retrieval logs
-   │
-   ├── Briefing cache
-   │
-   ├── Session state
-   │
-   └── Derived source labels
-```
-
-The supplied database is not replaced by a second application database.
-
----
-
-# 13. 🧠 AI / RAG Architecture
-
-The high-level AI pipeline is:
-
-```text
-                    User
-                      │
-                      ▼
-              ┌───────────────┐
-              │ React Frontend│
-              └───────┬───────┘
-                      │
-                      ▼
-              ┌───────────────┐
-              │    FastAPI    │
-              └───────┬───────┘
-                      │
-          ┌───────────┴───────────┐
-          │                       │
-          ▼                       ▼
-   Structured Data          ChromaDB
-     PS-13.db             Vector Retrieval
-          │                       │
-          └───────────┬───────────┘
-                      ▼
-              Relevance Gate
-                      │
-              ┌───────┴───────┐
-              │               │
-           Relevant       Not relevant
-              │               │
-              ▼               ▼
-           Gemini          REFUSAL
-              │
-              ▼
-        Citation Check
-              │
-        ┌─────┴─────┐
-        │           │
-    Supported    Unsupported
-        │           │
-        ▼           ▼
-      Show         Drop
-```
-
-### Why this architecture?
-
-The system separates responsibilities:
-
-* **Structured database** → deterministic facts
-* **Vector retrieval** → relevant unstructured knowledge
-* **Relevance gate** → determines whether evidence is sufficient
-* **LLM** → language generation
-* **Citation validation** → claim-level verification
-* **Deterministic ranker** → explainable recommendations
-* **Frontend** → visible provenance and user interaction
-
----
-
-# 14. 🧰 Technology Stack
-
-| Layer                     | Technology                           |
-| ------------------------- | ------------------------------------ |
-| Frontend                  | React + Vite                         |
-| Backend                   | Python + FastAPI                     |
-| Database                  | SQLite / provided `PS-13.db`         |
-| Vector Database           | ChromaDB                             |
-| Embeddings                | Sentence Transformers                |
-| LLM                       | Gemini API                           |
-| Validation                | Pytest                               |
-| Voice                     | Browser Web Speech API / TTS         |
-| Optional Offline Fallback | Ollama                               |
-| Runtime                   | Python virtual environment + Node.js |
-
----
-
-# 15. 🎬 Demo Path
-
-The recommended judge demo follows one traveller.
-
-```text
-ARRIVE
-  ↓
-Bengaluru detected
-  ↓
-OPEN BRIEFING
-  ↓
-Source-backed claims
-  ↓
-24 Sep → Nothing scheduled
-  ↓
-17 Oct → Monsoon Music Nights
-  ↓
-RIGHT NOW
-  ↓
-Data-derived recommendations
-  ↓
-ASK
-  ↓
-Grounded answer
-  ↓
-Live cab fare → REFUSAL
-  ↓
-GROUNDING OFF
-  ↓
-REFUSAL
-```
-
-### Step 1 — Arrive
-
-Open GeoGuide and allow location access.
-
-The application resolves the device location to the nearest supported city.
-
-If browser location is unavailable, a city picker can be used.
-
----
-
-### Step 2 — Briefing
-
-Open the Bengaluru briefing.
-
-Show the six sections and point out:
-
-> **Every factual claim has a source chip.**
-
----
-
-### Step 3 — Date Shift
-
-Move the date from:
-
-```text
-24 September
-```
-
-to:
-
-```text
-17 October
-```
-
-Show that:
-
-* The event changes
-* Seasonal framing changes
-* Weather-aware information changes
-* The corresponding source IDs change
-
-Then select an empty date and show:
-
-> **Nothing is scheduled.**
-
----
-
-### Step 4 — Right Now
-
-Open:
-
-> **What should I do in the next 90 minutes?**
-
-Show the ranked recommendations.
-
-Point at:
-
-```text
-Open now
-Distance
-Time fit
-Budget
-```
-
-Explain that the ranking is deterministic and data-driven.
-
----
-
-### Step 5 — Ask
-
-Ask:
-
-> **"Anything I should know before Bengaluru Bazaar?"**
-
-Show the grounded answer and source.
-
-Then ask:
-
-> **"How much is a cab to the airport right now?"**
-
-Show the refusal.
-
----
-
-### Step 6 — Grounding OFF
-
-Turn grounding off.
-
-Ask another question.
-
-Show:
-
-> **Refusal**
-
-This demonstrates that GeoGuide does not silently fall back to model memory when trusted evidence is unavailable.
-
----
-
-# 16. 🧪 Tests & Proof
-
-GeoGuide is designed to be measurable rather than only visually demonstrable.
-
-## Run Tests
+1. The browser shares its coordinates (with permission, over HTTPS), or you pick a city. The backend finds the nearest city by straight-line distance. Coordinates are not stored.
+2. For that city and date, the backend reads the facts straight from the database: the day's weather row, events on the date, advisories valid at noon, and places closed that weekday.
+3. For the briefing and chat, it retrieves the most relevant guide passages (city-filtered, by meaning) and asks Gemini to write only from them, citing a passage on every sentence.
+4. Sentences without a valid citation are removed. Each remaining one is shown with a chip, and `/source` turns that chip back into the row or passage it names.
+
+## Keeping the AI grounded
+
+GeoGuide uses retrieval-augmented generation (RAG): relevant text is found first, and the model may only write from it. A question passes through these checks, in order:
+
+| Check | What it does | On failure |
+|---|---|---|
+| **Layer 3: intent** | Rules catch questions the data can never answer: live fares, exchange rates, traffic, bookings and payments, officials' contact details, "ignore your rules" (English and Hindi) | Refuse before any model call |
+| **Layer 1: relevance** | The best city-filtered passage must reach a cosine similarity of at least 0.30 | Refuse without calling the model |
+| **Generation** | Gemini gets the question and the top 4 numbered passages, and must cite `[n]` on every sentence | — |
+| **Layer 2: sentinel** | The model replies with a fixed code word when the passages don't cover the question | Refuse |
+| **Citation check** | Every sentence must cite a passage that exists | Drop the sentence; refuse if none remain |
+
+- **Why intent rules run first:** calibration showed some unanswerable questions retrieve well ("How much is a cab to the airport right now?" lands near the transport passage). The threshold was chosen from 56 test questions (37 in-domain, 19 adversarial); see [docs/calibration.md](docs/calibration.md).
+- **Grounding-off proof:** the Judges view has a grounding switch. With it off, retrieval returns nothing, so every question is refused. That shows the model never answers from its own knowledge.
+- **No model available:** answers quote their source passages word for word, labelled as such, and a question naming a place no source mentions is refused.
+
+## Date-Shift Briefing
+
+Moving the travel date recomputes the briefing's facts from the database for that date. No model is involved, so it's instant, repeatable, and works even if the model is unavailable.
+
+| Fact | How it's decided for the date |
+|---|---|
+| Events | Active events whose start date ≤ date ≤ end date; if none, "Nothing is scheduled in Bengaluru on Fri 25 Sep", with the next event |
+| Weather and tips | The day's `weather_daily` row; tips follow from it (rain ≥ 10 mm → a rain jacket) |
+| Season | The row's season, and whether the month is one of the city's peak months |
+| Advisories | Those valid at 12:00 noon IST on the date, compared as time-zone-aware date-times |
+| Closures | Places whose closed days include that weekday |
+
+After a shift, **What changed** (`GET /date-diff`) computes both dates the same way and lists only the differences, for example "+ Monsoon Music Nights, + peak season, rain 5.4 → 1 mm". Every line cites both rows it compared. An empty date shows its query with **0 rows** rather than inventing an event.
+
+## Tech stack
+
+| Layer | Choice | Why |
+|---|---|---|
+| Frontend | React 18, Vite 5, Tailwind CSS | Reusable chips, cards and drawers; one date change updates every screen; consistent themes and phone layouts |
+| Backend | FastAPI (Python) | Sits next to the Python AI stack; fast, with request validation |
+| Data | SQLite (PS-13 dataset), opened read-only | The data can't be changed or added to by the app |
+| Retrieval | ChromaDB + `paraphrase-multilingual-MiniLM-L12-v2` | Finds passages by meaning, including Hindi questions; runs locally on a CPU |
+| Generation | Google Gemini (Flash, with fallback models); Ollama optional | Fast and follows source-only instructions well |
+| Translation | Sarvam AI | Natural Hindi and Kannada |
+| Voice | Web Speech API | Read aloud with no extra service |
+| Hosting | Vercel (web app); backend local, via a Cloudflare tunnel for demos. A Dockerfile and Render blueprint are included | See [docs/DEPLOY.md](docs/DEPLOY.md) |
+| Tests | pytest | 68 tests, see below |
+
+## Run it locally
+
+You need Python 3.11, Node 18+, and a Gemini API key. A Sarvam key is optional (for Hindi and Kannada).
 
 ```bash
-python -m pytest tests -q
-```
-
-## Run Adversarial Evaluation
-
-```bash
-python -m ai.evals.run_eval --set adversarial
-```
-
-## Full Evaluation
-
-```bash
-python -m ai.evals.run_eval
-```
-
-### Test Coverage
-
-Tests cover:
-
-* Grounding behaviour
-* Citation enforcement
-* Refusal behaviour
-* Date shifting
-* Empty-event dates
-* Festival dates
-* Boundary rules
-* Adversarial questions
-* Data conformance
-
-### Important Proof Cases
-
-| Scenario                | Expected Behaviour        |
-| ----------------------- | ------------------------- |
-| Valid grounded question | Answer with sources       |
-| Low-confidence fact     | Answer + verify locally   |
-| No relevant retrieval   | Refuse                    |
-| Live cab fare           | Refuse                    |
-| Made-up landmark        | Refuse                    |
-| Grounding disabled      | Refuse                    |
-| Date with event         | Show event                |
-| Date without event      | Say nothing is scheduled  |
-| Right Now               | Show data-derived reasons |
-
-### Grounding Proof
-
-The strongest proof cases are:
-
-```text
-Grounding ON
-    ↓
-Evidence available
-    ↓
-Answer + source
-```
-
-versus:
-
-```text
-Grounding OFF
-    ↓
-No trusted evidence
-    ↓
-REFUSAL
-```
-
-This makes the grounding behaviour directly observable during the demo.
-
----
-
-# 17. 📊 What We Measure
-
-GeoGuide focuses on measurable grounding behaviour.
-
-### Grounding
-
-Every displayed factual claim is expected to carry a source label.
-
-### Refusal
-
-Unsupported and adversarial questions are refused rather than answered from model memory.
-
-### Confidence
-
-Low-confidence facts can be explicitly marked:
-
-> **Verify locally**
-
-### Explainable Recommendations
-
-Each Right Now recommendation exposes data-derived reasoning.
-
-### Conformance
-
-The supplied database schema and boundary rules are validated through tests.
-
----
-
-# 18. 🚀 Running GeoGuide Locally
-
-## Prerequisites
-
-* Python 3
-* Node.js
-* npm
-* A Gemini API key
-* The supplied `PS-13.db`
-
----
-
-## 1. Clone the repository
-
-```bash
-git clone <YOUR_REPOSITORY_URL>
-cd <YOUR_REPOSITORY_FOLDER>
-```
-
----
-
-## 2. Create the Python environment
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-```
-
-### Windows
-
-```bash
-.venv\Scripts\activate
-```
-
----
-
-## 3. Install backend dependencies
-
-```bash
+# 1. Backend environment
+python3 -m venv .venv && source .venv/bin/activate
 pip install -r backend/requirements.txt
-```
 
----
-
-## 4. Configure environment variables
-
-```bash
+# 2. Keys: set GEMINI_API_KEY and GEMINI_MODEL (and SARVAM_API_KEY if you have one)
 cp .env.example .env
-```
 
-Set:
-
-```env
-GEMINI_API_KEY=your_key
-GEMINI_MODEL=your_model
-```
-
-Never commit `.env` or API keys to the repository.
-
----
-
-## 5. Build the vector index
-
-```bash
+# 3. Build the search index from PS-13.db (about a minute)
 python -m ai.index --reset
-```
 
-This builds the ChromaDB retrieval index from the supplied PS-13 knowledge base.
+# 4. Optional: generate and cache the demo briefings so they load instantly
+python -m ai.prewarm --cities cty_17b8ef2f --dates 2026-09-25 2026-10-17 2026-10-24 --langs en-IN
 
----
-
-## 6. Optional: Prewarm demo briefings
-
-```bash
-python -m ai.prewarm --dates 2026-09-24 2026-10-17
-```
-
-This can cache the main demo briefings so they load quickly during the presentation.
-
----
-
-## 7. Start the backend
-
-```bash
+# 5. Start the API on http://localhost:8000
 uvicorn backend.main:app --port 8000
 ```
 
-The FastAPI backend will run on:
-
-```text
-http://localhost:8000
-```
-
----
-
-## 8. Start the frontend
-
-Open another terminal:
+In a second terminal:
 
 ```bash
-cd frontend
-npm install
-npm run dev
+cd frontend && npm install && npm run dev    # open http://localhost:5173
 ```
 
-Open:
+Check the backend at `http://localhost:8000/health`: expect `"status": "ok"` and the index counts. Keys stay in `.env`, which is git-ignored; never put them in a `VITE_` variable, since those are built into the public web page.
 
-```text
-http://localhost:5173
+## Demo walkthrough
+
+About five minutes, in Bengaluru:
+
+1. **Arrive:** "You are in Bengaluru", with nearby places.
+2. **Briefing:** the header reads "N claims · N cited · 0 uncited dropped". Tap a weather chip: the evidence drawer shows the `weather_daily` row with the cited field highlighted.
+3. **Date-Shift:** tap **Monsoon Music Nights** on the date strip (Sat 17 Oct). "What changed" lists the festival, peak season and the weather change. Pick **Sat 24 Oct**: "Monsoon Music Nights is over". On **Fri 25 Sep**, "Nothing is scheduled" carries a 0-rows chip.
+4. **Ask:** "Do I need to remove my shoes at temples?" returns a cited answer. "How much is a cab to the airport right now?" is refused. Switch the language to Hindi or Kannada.
+5. **Nearby and Right now:** open a hotel's detail sheet and its source chip. Set a time and budget and select a pick on the radar.
+6. **Optional:** switch Wi-Fi off. The offline bar appears and the briefing still loads.
+
+A longer script is in [docs/DEMO.md](docs/DEMO.md), and the full project guide is in [docs/GeoGuide-Project-Guide.pdf](docs/GeoGuide-Project-Guide.pdf).
+
+## Tests and evaluation
+
+```bash
+python -m pytest tests -q                          # 68 tests
+python -m ai.evals.run_eval --set adversarial       # refusal evaluation (needs the index)
 ```
 
----
+- `tests/test_grounding.py`: grounding off refuses everything, and uncited output becomes a refusal.
+- `tests/test_date_shift.py`, `tests/test_date_facts.py`, `tests/test_date_diff.py`: facts change with the date, empty dates are reported honestly, and every "What changed" citation resolves to a real row.
+- `tests/test_source.py`: every citation label resolves to its row by key, and column-style labels don't.
+- `tests/test_boundary_rules.py`: the data rules R1–R8 (read-only database, exact decimal money with a currency, time-zone-aware timestamps, active rows only, and more). See [data-model/DATA_MODEL.md](data-model/DATA_MODEL.md).
+- Also: city isolation, chat follow-ups and reset, and small talk.
 
-# 19. 📁 Project Structure
+## Project structure
 
-```text
-GeoGuide/
-│
-├── frontend/
-│   ├── src/
-│   ├── public/
-│   └── Vite configuration
-│
-├── backend/
-│   ├── main.py
-│   ├── data_queries.py
-│   ├── ranker.py
-│   └── date_facts.py
-│
-├── ai/
-│   ├── retrieval/
-│   ├── indexing/
-│   ├── prompts/
-│   ├── pipeline.py
-│   └── evaluations/
-│
-├── data-model/
-│   └── DATA_MODEL.md
-│
-├── docs/
-│   ├── ARCHITECTURE.md
-│   └── DEMO.md
-│
-├── tests/
-│   ├── test_grounding.py
-│   ├── test_date_shift.py
-│   ├── test_date_facts.py
-│   └── test_boundary_rules.py
-│
-├── PS-13.db
-├── .env.example
-├── README.md
-└── requirements / configuration files
+```
+frontend/src/
+  App.jsx                  the five screens, citation chips, evidence drawer, What changed panel
+  api.js                   backend calls and the offline cache
+  hooks/useGeoLocation.js  browser location
+  components/              photo cards, radar map, date strip, read aloud, accessible briefing
+  dates.js                 "Fri 25 Sep" date formatting
+backend/
+  main.py                  FastAPI app and CORS
+  ai_routes.py             every endpoint
+  data_queries.py          database queries
+  date_facts.py            Date-Shift facts and weather tips (no model)
+  date_diff.py             What changed between two dates
+  source.py                citation label → database rows
+  ranker.py                Right now scoring
+ai/
+  pipeline.py              question flow: intent → relevance → model → sentinel → citations
+  retrieval.py, index.py   ChromaDB retrieval and index build
+  refusal.py               intent rules and refusal messages (English, Hindi, Kannada)
+  citations.py             citation parsing; drops uncited sentences
+  briefing.py, cache.py    briefing generation and its disk cache
+  translate.py, session.py Sarvam translation; chat memory for follow-ups
+  evals/                   56-question evaluation set
+data-model/                PS-13.db and the data rules
+docs/                      architecture, calibration, refusal spec, deploy, demo, screenshots, credits
+tests/                     pytest suite
 ```
 
----
+## Limits
 
-# 20. 🚫 What GeoGuide Deliberately Does NOT Do
+- The dataset covers 1 Sep to 30 Oct 2026; dates outside it move to the nearest covered date.
+- No live data (fares, traffic, prices) by design. Those questions are refused.
+- Travel times in Right now are estimates (about 12 km/h), not live routing, and the map is a radar drawn from coordinates rather than street tiles.
+- Translation depends on the Sarvam API; if it fails, English is shown.
+- The grounding switch is a demo control shared by everyone using the same backend.
 
-GeoGuide intentionally keeps the scope focused.
+## Team
 
-### No booking or payments
+**Team VVinners**, BMS College of Engineering
 
-GeoGuide surfaces places and hotels but does not perform transactions.
+| Member | Area |
+|---|---|
+| Vamika A Bhat | AI and RAG pipeline, grounding guard |
+| Vishnu Mashalkar | Backend, API and orchestration |
+| Vachana M H | Frontend and UI/UX |
+| Varsha Kusumadhara Kodi | Data, conformance, evidence and Date-Shift |
 
-### No live third-party fact APIs
+The canonical team repository is [kognivera-org/kv-hack2026-vvinners](https://github.com/kognivera-org/kv-hack2026-vvinners).
 
-The core demo does not depend on live Maps, search or external fact APIs.
+## Credits
 
-### No replacement database
-
-The supplied PS-13 database remains the source of truth.
-
-### No AR/XR
-
-GeoGuide is designed as a web application and does not require an AR/VR device.
-
-### No fabricated live information
-
-If the available data does not support a claim, GeoGuide refuses instead of inventing one.
-
-These boundaries keep the system focused on the central PS-13 requirement: a useful location-aware companion with grounded, explainable AI behaviour.
-
----
-
-# 21. 🔐 Why GeoGuide Is Different
-
-GeoGuide is not simply:
-
-> **"Ask an AI about a city."**
-
-It combines:
-
-```text
-LOCATION
-    +
-DATE
-    +
-STRUCTURED DATA
-    +
-RETRIEVAL
-    +
-RELEVANCE GATE
-    +
-AI GENERATION
-    +
-CITATION VALIDATION
-    +
-VISIBLE PROVENANCE
-    +
-REFUSAL
-    ↓
-TRUSTWORTHY PLACE COMPANION
-```
-
-The central design decision is:
-
-> **An AI answer is useful only when the system can show why it is allowed to say it.**
-
-That principle affects the entire application — from the database and retrieval layer to generation, citation checking, recommendations and the final UI.
-
----
-
-# 22. 🏁 PS-13 Requirement Coverage
-
-| PS-13 Capability            | GeoGuide Implementation                     |
-| --------------------------- | ------------------------------------------- |
-| Device location             | GPS + fallback city picker                  |
-| Place identification        | Location → nearest supported city           |
-| Date / season context       | City season + selected date                 |
-| Grounded briefing           | RAG over provided knowledge base            |
-| History                     | `place_kb`                                  |
-| Culture / etiquette         | `place_kb`                                  |
-| Events                      | `events_festivals` + selected date          |
-| Weather tips                | `weather_daily`                             |
-| Safety                      | `safety_advisories`                         |
-| Nearby places               | `activities_poi`                            |
-| Hotels                      | `hotels`                                    |
-| Follow-up Q&A               | Per-turn retrieval + session context        |
-| Low-confidence facts        | `poi_facts_kb.confidence`                   |
-| Multilingual                | English + Hindi + Kannada                   |
-| Voice                       | Browser TTS                                 |
-| Contextual recommendations  | Contextual Action Engine                    |
-| Explainable recommendations | Data-derived reason chips                   |
-| Unsupported questions       | Relevance gate + refusal                    |
-| Adversarial probes          | Curated refusal test set                    |
-| Grounding proof             | Retrieval-off refusal + citation validation |
-
----
-
-# 23. 🧰 Tools & Libraries
-
-GeoGuide uses:
-
-* FastAPI
-* Uvicorn
-* Pydantic
-* ChromaDB
-* Sentence Transformers
-* `paraphrase-multilingual-MiniLM-L12-v2`
-* Google Gemini / `google-genai`
-* Python dotenv
-* Pytest
-* React
-* Vite
-* Browser Web Speech API
-* Optional Ollama fallback
-
-Claude (Anthropic) was used as an AI coding assistant during the hackathon window.
-
----
-
-# 24. 🖼️ Visual Assets
-
-City and place images used by the application are sourced from Wikimedia Commons and used according to their listed licenses.
-
-The repository contains the corresponding image/source information for the city and place assets.
-
----
-
-# 25. 👥 Team VVinners
-
-### Vamika A Bhat
-
-**AI & RAG**
-
-Responsible for:
-
-* Retrieval pipeline
-* Embeddings
-* Prompt design
-* Grounding guard
-* Citation validation
-* AI evaluation
-* Refusal behaviour
-
-### Vishnu Mashalkar
-
-**Backend & Orchestration**
-
-Responsible for:
-
-* FastAPI
-* API design
-* Structured database queries
-* Date-Shift logic
-* Context resolution
-* Right Now ranker
-* Session state
-* Backend integration
-
-### Vachana M H
-
-**Frontend & UX**
-
-Responsible for:
-
-* React/Vite application
-* Briefing interface
-* Nearby interface
-* Right Now interface
-* Ask interface
-* Source chips
-* Language UI
-* TTS
-* Demo presentation
-
-### Varsha Kusumadhara Kodi
-
-**Data & Conformance**
-
-Responsible for:
-
-* PS-13 database integration
-* Data validation
-* Embedding/index preparation
-* Boundary rules
-* Conformance tests
-* Evaluation suite
-* Data documentation
-
----
-
-# 26. 💡 One-Line Pitch
-
-> **GeoGuide is a location-aware AI travel companion that tells you what matters about a place, what you can do right now, and what you should know — while showing the source behind every claim and refusing to guess when the data doesn't support an answer.**
-
----
-
-## 🌍 GeoGuide
-
-**Arrive. Understand. Act. Ask. — with evidence.**
-
-**Team VVinners · BMS College of Engineering**
-**KogniVera Hackathon 2026 · PS-13**
+The dataset is the PS-13 dataset provided by KogniVera for the hackathon. The tools and libraries used, and the source and license of every photo in the app (all from Wikimedia Commons), are listed in [docs/CREDITS.md](docs/CREDITS.md). Claude (Anthropic) was used as an AI coding assistant during the hackathon window.
