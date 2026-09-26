@@ -30,6 +30,9 @@ SARVAM_MODEL = os.getenv("SARVAM_MODEL", "sarvam-translate:v1")
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/chat")
 # Live requests fail fast to the extractive fallback; prewarm can raise these to wait out quotas.
 LLM_TIMEOUT_MS = int(os.getenv("LLM_TIMEOUT_MS", "30000"))
+# A chat answer is short, so a model that hasn't replied by then is stuck: move on to the
+# next model instead of holding the question for the full LLM timeout.
+ASK_TIMEOUT_MS = int(os.getenv("ASK_TIMEOUT_MS", "12000"))
 LLM_QUOTA_ROUNDS = int(os.getenv("LLM_QUOTA_ROUNDS", "2"))
 LLM_QUOTA_WAIT = int(os.getenv("LLM_QUOTA_WAIT", "5"))
 

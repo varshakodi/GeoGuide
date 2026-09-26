@@ -49,7 +49,7 @@ def test_grounding_off_refuses_everything(monkeypatch):
 
 def test_below_threshold_never_calls_the_model(monkeypatch):
     called = []
-    monkeypatch.setattr(pipeline, "generate", lambda s, u: called.append(1) or "x [1].")
+    monkeypatch.setattr(pipeline, "generate", lambda s, u, **kw: called.append(1) or "x [1].")
     monkeypatch.setattr(pipeline, "retrieve", lambda q, c, k=None: Retrieval(passages=[], top_score=0.11, gated=True))
     out = pipeline.answer_question("Tell me about the Glass Tower", CITY)
     assert out["type"] == "refusal" and out["layer"] == 1 and not called
@@ -74,7 +74,7 @@ def test_a_bare_citation_is_never_a_claim():
 
 
 def test_uncited_output_becomes_a_refusal(monkeypatch):
-    monkeypatch.setattr(pipeline, "generate", lambda s, u: "Everything here is wonderful.")
+    monkeypatch.setattr(pipeline, "generate", lambda s, u, **kw: "Everything here is wonderful.")
     monkeypatch.setattr(pipeline, "retrieve",
                         lambda q, c, k=None: Retrieval(passages=[Passage(1, "b", "L", 0.6)], top_score=0.6))
     out = pipeline.answer_question("Is tap water safe?", CITY)

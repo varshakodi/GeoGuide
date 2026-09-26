@@ -11,7 +11,7 @@ BLR = "cty_17b8ef2f"
 def no_retrieval(monkeypatch):
     called = []
     monkeypatch.setattr(pipeline, "retrieve", lambda q, c, k=None: called.append(q) or Retrieval(gated=True))
-    monkeypatch.setattr(pipeline, "generate", lambda s, u: called.append("llm") or "x [1].")
+    monkeypatch.setattr(pipeline, "generate", lambda s, u, **kw: called.append("llm") or "x [1].")
     return called
 
 
@@ -48,7 +48,7 @@ def test_follow_up_uses_the_qa_prompt(monkeypatch):
         passages=[Passage(1, "Remove footwear at religious sites.", "KV Place Guide / Bengaluru / etiquette", 0.7)],
         top_score=0.7))
     monkeypatch.setattr(pipeline, "generate",
-                        lambda s, u: seen.update(system=s, user=u) or "Remove footwear at religious sites [1].")
+                        lambda s, u, **kw: seen.update(system=s, user=u) or "Remove footwear at religious sites [1].")
     out = pipeline.answer_question("Any etiquette tips?", BLR)
     assert out["type"] == "answer" and out["claims"][0]["source_labels"]
     assert seen["system"] is None and "DETAIL PRESERVATION" in seen["user"]

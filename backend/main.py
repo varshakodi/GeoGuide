@@ -18,6 +18,19 @@ app.add_middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS, allow_origin_r
 app.include_router(ai_router)
 
 
+@app.on_event("startup")
+def warm_search_model():
+    """Load the embedding model and the index in the background at startup. Loaded lazily,
+    they made the first question after a restart take about 17 seconds longer."""
+    import threading
+
+    def warm():
+        from ai.index import collections, embed
+        embed(["warm up"])
+        collections()
+    threading.Thread(target=warm, daemon=True).start()
+
+
 @app.get("/health")
 def health():
     try:

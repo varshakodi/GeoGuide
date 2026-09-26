@@ -55,7 +55,7 @@ def _compose(lang, task, passages, max_sentences, question=None):
     """Calls the model and applies layers 2 and the citation check."""
     try:
         # Follow-up questions use the Q&A prompt (detail-preserving); briefing sections the system prompt.
-        raw = (generate(None, _qa(lang, question, passages, max_sentences)) if question
+        raw = (generate(None, _qa(lang, question, passages, max_sentences), timeout_ms=config.ASK_TIMEOUT_MS, patient=False) if question
                else generate(_system(max_sentences), _user(lang, task, passages)))
     except LLMUnavailable as e:
         # No model reachable: quote the best passage that already cleared the relevance

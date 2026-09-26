@@ -27,24 +27,55 @@ def _is_quota(e):
     return any(m in s for m in ("RESOURCE_EXHAUSTED", "429", "UNAVAILABLE", "503"))
 
 
-def _gemini(system, user, rounds=3, wait=20):
+def _is_timeout(e):
+    """A model that didn't answer in time: the next model may, so try it rather than give up."""
+    s = str(e).lower()
+    return any(m in s for m in ("timed out", "timeout", "deadline_exceeded", "504"))
+
+
+# Answers are written from passages we supply, so the model's "thinking" step only adds
+# seconds. Models that reject a thinking setting are remembered and asked without it.
+_NO_THINKING_SETTING = set()
+
+
+def _gen_config(model, system, timeout_ms):
+    from google.genai import types
+    extra = {}
+    if model not in _NO_THINKING_SETTING:
+        extra["thinking_config"] = types.ThinkingConfig(thinking_budget=0)
+    if timeout_ms:
+        extra["http_options"] = types.HttpOptions(timeout=timeout_ms)
+    return types.GenerateContentConfig(
+        system_instruction=system or None, temperature=0.2,
+        automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True), **extra)
+
+
+def _gemini(system, user, rounds=3, wait=20, timeout_ms=None):
     """Try every model and key; on quota or overload errors, wait and try again.
 
     A per-minute limit clears after a short wait, so a couple of rounds rescues it.
     A daily limit never clears, so we give up quickly and let the caller fall back.
     """
-    from google.genai import types
     last = None
     for attempt in range(rounds):
         worth_waiting = False
         for model, key in [(m, k) for m in config.GEMINI_MODELS for k in config.gemini_keys()]:
             try:
-                r = _client(key).models.generate_content(
-                    model=model, contents=user,
-                    config=types.GenerateContentConfig(system_instruction=system or None, temperature=0.2))
+                try:
+                    r = _client(key).models.generate_content(
+                        model=model, contents=user, config=_gen_config(model, system, timeout_ms))
+                except Exception as e:
+                    if "INVALID_ARGUMENT" not in str(e) or model in _NO_THINKING_SETTING:
+                        raise
+                    _NO_THINKING_SETTING.add(model)
+                    r = _client(key).models.generate_content(
+                        model=model, contents=user, config=_gen_config(model, system, timeout_ms))
                 return (r.text or "").strip()
             except Exception as e:
                 last = e
+                if _is_timeout(e):
+                    print(f"    [llm] {model} timed out, trying the next model")
+                    continue
                 if _is_quota(e):
                     # Overloads and per-minute limits clear; a per-day limit does not.
                     worth_waiting = worth_waiting or "PerDay" not in str(e)
@@ -104,8 +135,11 @@ def _configured(provider):
     return bool(config.OLLAMA_MODEL)
 
 
-def generate(system, user):
+def generate(system, user, timeout_ms=None, patient=True):
     """Try the configured provider, then the others in PROVIDERS order.
+    timeout_ms caps each Gemini attempt (the client default otherwise). A caller that is
+    not patient (a chat answer) gets one pass over the models instead of waiting out an
+    overload, so it falls back to quoting its sources within seconds.
     Raises LLMUnavailable if none of them answers."""
     order = [config.LLM_PROVIDER] + [p for p in PROVIDERS if p != config.LLM_PROVIDER]
     last = None
@@ -119,8 +153,8 @@ def generate(system, user):
             # Only the primary provider is worth waiting out a per-minute quota or an overload
             # for; as a fallback it gets one quick pass so the request isn't held for a minute.
             if provider == "gemini":
-                return _gemini(system, user, rounds=config.LLM_QUOTA_ROUNDS if primary else 1,
-                               wait=config.LLM_QUOTA_WAIT)
+                return _gemini(system, user, rounds=config.LLM_QUOTA_ROUNDS if primary and patient else 1,
+                               wait=config.LLM_QUOTA_WAIT, timeout_ms=timeout_ms)
             return _ollama(system, user)
         except Exception as e:
             print(f"    [llm] {provider} failed: {str(e)[:120]}")
