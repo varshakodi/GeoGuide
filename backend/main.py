@@ -1,4 +1,4 @@
-"""FastAPI app. Vishnu owns this file; the AI router is mounted here."""
+"""FastAPI app; the AI router is mounted here."""
 import os
 
 from fastapi import FastAPI

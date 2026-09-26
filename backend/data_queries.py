@@ -1,7 +1,6 @@
 """Row fetches from the provided database. Read-only; money stays Decimal (rule R3).
 
-NOTE: this is the shared data layer — Vishnu owns it from here. It exists so the
-AI endpoints work end to end now; extend it rather than writing a second copy.
+This is the shared data layer: extend it rather than writing a second copy.
 """
 import math, sqlite3
 from datetime import date, datetime

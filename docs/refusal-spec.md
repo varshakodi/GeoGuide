@@ -1,6 +1,6 @@
 # Refusal specification — GeoGuide
 
-Owner: Vamika · Status: DRAFT, finalised in the sprint · Inputs: `docs/calibration.md`, `spikes/calibration/questions.csv`
+Status: DRAFT, finalised in the sprint · Inputs: `docs/calibration.md`, `spikes/calibration/questions.csv`
 
 GeoGuide either answers from a cited source or declines. Refusal is not one check but three layers plus a final citation check. Each refusal records **which layer fired and why**, so the evaluation can count them and the demo can show them.
 

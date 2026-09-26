@@ -156,7 +156,7 @@ About five minutes, in Bengaluru:
 5. **Nearby and Right now:** open a hotel's detail sheet and its source chip. Set a time and budget and select a pick on the radar.
 6. **Optional:** switch Wi-Fi off. The offline bar appears and the briefing still loads.
 
-A longer script is in [docs/DEMO.md](docs/DEMO.md), and the full project guide is in [docs/GeoGuide-Project-Guide.pdf](docs/GeoGuide-Project-Guide.pdf).
+A one-page summary is in [docs/GeoGuide-At-A-Glance.pdf](docs/GeoGuide-At-A-Glance.pdf), the full project guide in [docs/GeoGuide-Project-Guide.pdf](docs/GeoGuide-Project-Guide.pdf), and a longer demo script in [docs/DEMO.md](docs/DEMO.md).
 
 ## Tests and evaluation
 
@@ -211,14 +211,7 @@ tests/                     pytest suite
 
 ## Team
 
-**Team VVinners**, BMS College of Engineering
-
-| Member | Area |
-|---|---|
-| Vamika A Bhat | AI and RAG pipeline, grounding guard |
-| Vishnu Mashalkar | Backend, API and orchestration |
-| Vachana M H | Frontend and UI/UX |
-| Varsha Kusumadhara Kodi | Data, conformance, evidence and Date-Shift |
+**Team VVinners**, BMS College of Engineering: Vachana M H, Vamika A Bhat, Varsha Kusumadhara Kodi and Vishnu Mashalkar.
 
 The canonical team repository is [kognivera-org/kv-hack2026-vvinners](https://github.com/kognivera-org/kv-hack2026-vvinners).
 

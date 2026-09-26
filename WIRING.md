@@ -968,12 +968,7 @@ The test suite verifies that changing the date changes the relevant event/weathe
 
 # 👥 18. Team VVinners
 
-| Member                      | Responsibility                     |
-| --------------------------- | ---------------------------------- |
-| **Vamika A Bhat**           | AI & RAG pipeline, grounding guard |
-| **Vishnu Mashalkar**        | Backend, API & orchestration       |
-| **Vachana M H**             | Frontend & UI/UX                   |
-| **Varsha Kusumadhara Kodi** | Data, embeddings & conformance     |
+Vachana M H, Vamika A Bhat, Varsha Kusumadhara Kodi and Vishnu Mashalkar, BMS College of Engineering.
 
 ---
 

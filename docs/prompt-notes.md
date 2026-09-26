@@ -1,6 +1,6 @@
 # Prompt notes — GeoGuide
 
-Owner: Vamika · Status: DRAFT, finalised in the sprint · Tested with `spikes/calibration/citation_test.py`
+Status: DRAFT, finalised in the sprint · Tested with `spikes/calibration/citation_test.py`
 
 ## System prompt (identical to `SYSTEM_PROMPT` in the spike)
 
